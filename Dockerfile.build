@@ -1,0 +1,16 @@
+FROM golang:1.21-bullseye
+
+# Install librdkafka
+RUN apt-get update && \
+    apt-get install -y librdkafka-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy source
+COPY . .
+
+# Download dependencies
+RUN go mod download
+
+# Build script will be run from docker command
