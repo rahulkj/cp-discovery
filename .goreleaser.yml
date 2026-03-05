@@ -6,9 +6,8 @@ before:
 
 builds:
   - main: ./cmd/cp-discovery
-    binary: cp-discovery
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -20,8 +19,16 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
+    no_unique_dist_dir: true
     ignore:
       - goos: windows
+    binary: >-
+      {{ .ProjectName }}-
+      {{- title .Os }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
 
 archives:
   - name_template: >-
