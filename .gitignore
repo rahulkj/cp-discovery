@@ -36,3 +36,5 @@ discovery-report.*
 # OS
 .DS_Store
 Thumbs.db
+
+.bin
