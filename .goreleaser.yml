@@ -6,6 +6,13 @@ before:
 
 builds:
   - main: ./cmd/cp-discovery
+    binary: >-
+      {{ .ProjectName }}-
+      {{- title .Os }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
     env:
       - CGO_ENABLED=0
     goos:
@@ -19,16 +26,9 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
-    no_unique_dist_dir: true
     ignore:
       - goos: windows
-    binary: >-
-      {{ .ProjectName }}-
-      {{- title .Os }}-
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    no_unique_dist_dir: true
 
 archives:
   - name_template: >-
