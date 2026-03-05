@@ -10,7 +10,7 @@ LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=
 echo "Building Linux binaries using Docker..."
 
 # Build Docker image
-docker build -f Dockerfile.build -t cp-discovery-builder .
+docker build -f scripts/Dockerfile.build -t cp-discovery-builder .
 
 # Build for Linux AMD64
 echo "Building for linux/amd64..."

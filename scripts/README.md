@@ -86,7 +86,7 @@ dist/
 
 **Requirements:**
 - Docker
-- Dockerfile.build (builder image definition)
+- scripts/Dockerfile.build (builder image definition)
 
 **Note:**
 This script first builds a Docker image (`cp-discovery-builder`) and then uses it to compile the binaries.

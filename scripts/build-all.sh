@@ -41,7 +41,7 @@ if ! command -v docker &> /dev/null; then
 else
     # Linux ARM64 (native to this Mac)
     echo "  ✓ linux/arm64 (building...)"
-    docker build --platform linux/arm64 -f Dockerfile.build -t cp-discovery-builder-arm64 . > /dev/null 2>&1
+    docker build --platform linux/arm64 -f scripts/Dockerfile.build -t cp-discovery-builder-arm64 . > /dev/null 2>&1
     mkdir -p dist/cp-discovery_linux_arm64
     docker run --rm --platform linux/arm64 \
         -v "$PWD/dist:/dist" \
@@ -53,7 +53,7 @@ else
 
     # Linux AMD64 (cross-platform - requires QEMU)
     echo "  ✓ linux/amd64 (building...)"
-    docker build --platform linux/amd64 -f Dockerfile.build -t cp-discovery-builder-amd64 . > /dev/null 2>&1
+    docker build --platform linux/amd64 -f scripts/Dockerfile.build -t cp-discovery-builder-amd64 . > /dev/null 2>&1
     mkdir -p dist/cp-discovery_linux_amd64
     docker run --rm --platform linux/amd64 \
         -v "$PWD/dist:/dist" \
