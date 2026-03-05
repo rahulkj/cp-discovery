@@ -1,0 +1,139 @@
+# Confluent Platform Discovery - SSL/TLS Configuration Examples
+# This file demonstrates various SSL/TLS configurations for Kafka
+
+clusters:
+  # ============================================================================
+  # Example 1: SSL with Server Authentication Only (One-way SSL)
+  # ============================================================================
+  - name: "ssl-server-auth"
+    kafka:
+      bootstrap_servers: "broker1:9093"
+      security_protocol: "SSL"
+
+      # CA certificate to verify broker's certificate
+      ssl_ca_location: "/path/to/ca-cert.pem"
+
+    # REST components with shared auth
+    shared_auth:
+      username: "admin"
+      password: "${CP_PASSWORD}"
+
+  # ============================================================================
+  # Example 2: SSL with Mutual TLS (mTLS / Two-way SSL)
+  # ============================================================================
+  - name: "ssl-mutual-tls"
+    kafka:
+      bootstrap_servers: "broker2:9093"
+      security_protocol: "SSL"
+
+      # CA certificate to verify broker
+      ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+
+      # Client certificate for mutual authentication
+      ssl_cert_location: "/etc/kafka/ssl/client-cert.pem"
+      ssl_key_location: "/etc/kafka/ssl/client-key.pem"
+
+      # Optional: Password for encrypted private key
+      ssl_key_password: "${SSL_KEY_PASSWORD}"
+
+    shared_auth:
+      username: "${CP_USER}"
+      password: "${CP_PASS}"
+
+  # ============================================================================
+  # Example 3: SASL_SSL (SASL with TLS encryption)
+  # ============================================================================
+  - name: "sasl-ssl-cluster"
+    kafka:
+      bootstrap_servers: "broker3:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASSWORD}"
+
+      # SSL configuration for encrypted channel
+      ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+
+    shared_auth:
+      username: "${CP_USER}"
+      password: "${CP_PASS}"
+
+  # ============================================================================
+  # Example 4: SSL with SCRAM-SHA-256
+  # ============================================================================
+  - name: "scram-ssl-cluster"
+    kafka:
+      bootstrap_servers: "broker4:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-256"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASSWORD}"
+
+      # CA certificate
+      ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+
+  # ============================================================================
+  # Example 5: SSL with Disabled Hostname Verification
+  # WARNING: Not recommended for production!
+  # ============================================================================
+  - name: "ssl-no-hostname-verify"
+    kafka:
+      bootstrap_servers: "broker5:9093"
+      security_protocol: "SSL"
+      ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+
+      # Disable hostname verification (use only for testing/development)
+      ssl_endpoint_identification: "none"
+
+  # ============================================================================
+  # Example 6: Full Production SSL Configuration
+  # ============================================================================
+  - name: "production-ssl"
+    kafka:
+      bootstrap_servers: "broker1:9093,broker2:9093,broker3:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASSWORD}"
+
+      # SSL certificates
+      ssl_ca_location: "/etc/kafka/ssl/ca-bundle.pem"
+      ssl_cert_location: "/etc/kafka/ssl/client-cert.pem"
+      ssl_key_location: "/etc/kafka/ssl/client-key.pem"
+      ssl_key_password: "${SSL_KEY_PASSWORD}"
+      ssl_endpoint_identification: "https"
+
+    # Schema Registry with mTLS
+    schema_registry:
+      url: "https://sr1:8081"
+      basic_auth_username: "${SR_USER}"
+      basic_auth_password: "${SR_PASSWORD}"
+
+    # Kafka Connect with mTLS
+    kafka_connect:
+      url: "https://connect1:8083"
+      basic_auth_username: "${CONNECT_USER}"
+      basic_auth_password: "${CONNECT_PASSWORD}"
+
+    # ksqlDB with mTLS
+    ksqldb:
+      url: "https://ksqldb1:8088"
+      basic_auth_username: "${KSQLDB_USER}"
+      basic_auth_password: "${KSQLDB_PASSWORD}"
+
+output:
+  format: "json"
+  file: "discovery-report.json"
+  detailed: true
+
+# Environment Variables Required:
+# --------------------------------
+# KAFKA_USER - Kafka SASL username
+# KAFKA_PASSWORD - Kafka SASL password
+# SSL_KEY_PASSWORD - Private key password (if encrypted)
+# SR_USER - Schema Registry username
+# SR_PASSWORD - Schema Registry password
+# CONNECT_USER - Kafka Connect username
+# CONNECT_PASSWORD - Kafka Connect password
+# KSQLDB_USER - ksqlDB username
+# KSQLDB_PASSWORD - ksqlDB password

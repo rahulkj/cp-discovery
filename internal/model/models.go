@@ -29,11 +29,16 @@ type SharedAuthConfig struct {
 
 // KafkaConfig represents Kafka cluster connection configuration
 type KafkaConfig struct {
-	BootstrapServers string `yaml:"bootstrap_servers"`
-	SecurityProtocol string `yaml:"security_protocol,omitempty"`
-	SaslMechanism    string `yaml:"sasl_mechanism,omitempty"`
-	SaslUsername     string `yaml:"sasl_username,omitempty"`
-	SaslPassword     string `yaml:"sasl_password,omitempty"`
+	BootstrapServers      string `yaml:"bootstrap_servers"`
+	SecurityProtocol      string `yaml:"security_protocol,omitempty"`
+	SaslMechanism         string `yaml:"sasl_mechanism,omitempty"`
+	SaslUsername          string `yaml:"sasl_username,omitempty"`
+	SaslPassword          string `yaml:"sasl_password,omitempty"`
+	SslCaLocation         string `yaml:"ssl_ca_location,omitempty"`
+	SslCertLocation       string `yaml:"ssl_cert_location,omitempty"`
+	SslKeyLocation        string `yaml:"ssl_key_location,omitempty"`
+	SslKeyPassword        string `yaml:"ssl_key_password,omitempty"`
+	SslEndpointIdentification string `yaml:"ssl_endpoint_identification,omitempty"`
 }
 
 // SchemaRegistryConfig represents Schema Registry connection configuration
@@ -151,6 +156,7 @@ type KafkaReport struct {
 	Available          bool            `json:"available"`
 	BrokerCount        int             `json:"broker_count,omitempty"`
 	ControllerType     string          `json:"controller_type,omitempty"`
+	ControllerCount    int             `json:"controller_count,omitempty"`
 	ZookeeperNodes     int             `json:"zookeeper_nodes,omitempty"`
 	TopicCount         int             `json:"topic_count,omitempty"`
 	InternalTopics     int             `json:"internal_topics,omitempty"`

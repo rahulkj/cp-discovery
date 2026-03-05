@@ -1,0 +1,36 @@
+# Example configuration for local Confluent Platform (Docker)
+# Copy this to config.yaml and adjust for your environment
+
+clusters:
+  - name: "local-docker"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+      security_protocol: "PLAINTEXT"
+      sasl_mechanism: ""
+      sasl_username: ""
+      sasl_password: ""
+
+    schema_registry:
+      url: "http://localhost:8081"
+      basic_auth_username: ""
+      basic_auth_password: ""
+
+    kafka_connect:
+      url: "http://localhost:8083"
+      basic_auth_username: ""
+      basic_auth_password: ""
+
+    ksqldb:
+      url: "http://localhost:8088"
+      basic_auth_username: ""
+      basic_auth_password: ""
+
+    rest_proxy:
+      url: "http://localhost:8082"
+      basic_auth_username: ""
+      basic_auth_password: ""
+
+output:
+  format: "json"
+  file: "discovery-report.json"
+  detailed: true

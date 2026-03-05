@@ -332,12 +332,73 @@ func formatRetention(ms int64) string {
 	return fmt.Sprintf("%dd", days)
 }
 
+func printNodeCountSummary(report *model.DiscoveryReport) {
+	fmt.Println(strings.Repeat("-", 80))
+	fmt.Println("NODE COUNT SUMMARY (Across All Clusters)")
+	fmt.Println(strings.Repeat("-", 80))
+
+	// Aggregate counts
+	totalBrokers := 0
+	totalControllers := 0
+	totalSchemaRegistryNodes := 0
+	totalConnectWorkers := 0
+	totalKsqlDBNodes := 0
+	totalRestProxyInstances := 0
+	totalControlCenterInstances := 0
+
+	for _, cluster := range report.Clusters {
+		if cluster.Kafka.Available {
+			totalBrokers += cluster.Kafka.BrokerCount
+			totalControllers += cluster.Kafka.ControllerCount
+		}
+		if cluster.SchemaRegistry.Available {
+			totalSchemaRegistryNodes += cluster.SchemaRegistry.NodeCount
+		}
+		if cluster.KafkaConnect.Available {
+			totalConnectWorkers += cluster.KafkaConnect.WorkerCount
+		}
+		if cluster.KsqlDB.Available {
+			totalKsqlDBNodes += cluster.KsqlDB.NodeCount
+		}
+		if cluster.RestProxy.Available {
+			totalRestProxyInstances++ // REST Proxy doesn't track node count, so count instances
+		}
+		if cluster.ControlCenter.Available {
+			totalControlCenterInstances++ // Control Center doesn't track node count, so count instances
+		}
+	}
+
+	fmt.Printf("  Kafka Brokers:           %d\n", totalBrokers)
+	if totalControllers > 0 {
+		fmt.Printf("  KRaft Controllers:       %d\n", totalControllers)
+	}
+	if totalSchemaRegistryNodes > 0 {
+		fmt.Printf("  Schema Registry Nodes:   %d\n", totalSchemaRegistryNodes)
+	}
+	if totalConnectWorkers > 0 {
+		fmt.Printf("  Kafka Connect Workers:   %d\n", totalConnectWorkers)
+	}
+	if totalKsqlDBNodes > 0 {
+		fmt.Printf("  ksqlDB Nodes:            %d\n", totalKsqlDBNodes)
+	}
+	if totalRestProxyInstances > 0 {
+		fmt.Printf("  REST Proxy Instances:    %d\n", totalRestProxyInstances)
+	}
+	if totalControlCenterInstances > 0 {
+		fmt.Printf("  Control Center Instances: %d\n", totalControlCenterInstances)
+	}
+	fmt.Println()
+}
+
 func printSummary(report *model.DiscoveryReport) {
 	fmt.Println("\n" + strings.Repeat("=", 80))
 	fmt.Println("CONFLUENT PLATFORM DISCOVERY SUMMARY")
 	fmt.Println(strings.Repeat("=", 80))
 	fmt.Printf("Timestamp: %s\n", report.Timestamp)
 	fmt.Printf("Total Clusters: %d\n\n", report.TotalClusters)
+
+	// Print aggregate node counts across all clusters
+	printNodeCountSummary(report)
 
 	for _, cluster := range report.Clusters {
 		fmt.Printf("Cluster: %s [%s]\n", cluster.Name, cluster.Status)
@@ -347,7 +408,11 @@ func printSummary(report *model.DiscoveryReport) {
 		if cluster.Kafka.Available {
 			fmt.Printf("  Kafka:\n")
 			fmt.Printf("    Brokers: %d\n", cluster.Kafka.BrokerCount)
-			fmt.Printf("    Controller: %s\n", cluster.Kafka.ControllerType)
+			fmt.Printf("    Controller: %s", cluster.Kafka.ControllerType)
+			if cluster.Kafka.ControllerCount > 0 {
+				fmt.Printf(" (Controllers: %d)", cluster.Kafka.ControllerCount)
+			}
+			fmt.Println()
 			if cluster.Kafka.ZookeeperNodes > 0 {
 				fmt.Printf("    ZooKeeper Nodes: %d\n", cluster.Kafka.ZookeeperNodes)
 			}
@@ -645,7 +710,7 @@ func serveReportHTML(w http.ResponseWriter, r *http.Request, report *model.Disco
 	w.Write([]byte(html))
 }
 
-// generateReportHTML generates the HTML content
+// generateReportHTML generates the interactive HTML content with drill-down capabilities
 func generateReportHTML(report *model.DiscoveryReport) string {
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -930,11 +995,23 @@ func generateReportHTML(report *model.DiscoveryReport) string {
             var healthyClusters = data.clusters.filter(function(c) { return c.status === 'healthy'; }).length;
             var totalBrokers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.broker_count || 0); }, 0);
             var totalTopics = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.topic_count || 0); }, 0);
+            var totalControllers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.controller_count || 0); }, 0);
+            var totalSRNodes = data.clusters.reduce(function(sum, c) { return sum + (c.schema_registry && c.schema_registry.node_count || 0); }, 0);
+            var totalConnectWorkers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka_connect && c.kafka_connect.worker_count || 0); }, 0);
+            var totalKsqlDBNodes = data.clusters.reduce(function(sum, c) { return sum + (c.ksqldb && c.ksqldb.node_count || 0); }, 0);
+            var totalRestProxyInstances = data.clusters.filter(function(c) { return c.rest_proxy && c.rest_proxy.available; }).length;
+            var totalControlCenterInstances = data.clusters.filter(function(c) { return c.control_center && c.control_center.available; }).length;
 
             summary.innerHTML = '<div class="summary-card"><div class="number">' + totalClusters + '</div><div class="label">Total Clusters</div></div>' +
                 '<div class="summary-card"><div class="number">' + healthyClusters + '</div><div class="label">Healthy Clusters</div></div>' +
-                '<div class="summary-card"><div class="number">' + totalBrokers + '</div><div class="label">Total Brokers</div></div>' +
-                '<div class="summary-card"><div class="number">' + totalTopics + '</div><div class="label">Total Topics</div></div>';
+                '<div class="summary-card"><div class="number">' + totalBrokers + '</div><div class="label">Kafka Brokers</div></div>' +
+                '<div class="summary-card"><div class="number">' + totalTopics + '</div><div class="label">Total Topics</div></div>' +
+                (totalControllers > 0 ? '<div class="summary-card"><div class="number">' + totalControllers + '</div><div class="label">KRaft Controllers</div></div>' : '') +
+                (totalSRNodes > 0 ? '<div class="summary-card"><div class="number">' + totalSRNodes + '</div><div class="label">Schema Registry Nodes</div></div>' : '') +
+                (totalConnectWorkers > 0 ? '<div class="summary-card"><div class="number">' + totalConnectWorkers + '</div><div class="label">Connect Workers</div></div>' : '') +
+                (totalKsqlDBNodes > 0 ? '<div class="summary-card"><div class="number">' + totalKsqlDBNodes + '</div><div class="label">ksqlDB Nodes</div></div>' : '') +
+                (totalRestProxyInstances > 0 ? '<div class="summary-card"><div class="number">' + totalRestProxyInstances + '</div><div class="label">REST Proxy Instances</div></div>' : '') +
+                (totalControlCenterInstances > 0 ? '<div class="summary-card"><div class="number">' + totalControlCenterInstances + '</div><div class="label">Control Center Instances</div></div>' : '');
         }
 
         function renderClusters(data) {
@@ -947,39 +1024,58 @@ func generateReportHTML(report *model.DiscoveryReport) string {
             var componentsHTML = '';
 
             if (cluster.kafka && cluster.kafka.available) {
-                componentsHTML += renderComponent('Kafka', 'K', {
+                var kafkaDetails = {
                     'Brokers': cluster.kafka.broker_count,
                     'Controller': cluster.kafka.controller_type,
                     'Topics': cluster.kafka.topic_count,
                     'Partitions': cluster.kafka.total_partitions,
                     'Security': (cluster.kafka.security_config && cluster.kafka.security_config.authentication_method) || 'None'
-                });
+                };
+                if (cluster.kafka.controller_count > 0) {
+                    kafkaDetails['Controller Nodes'] = cluster.kafka.controller_count;
+                }
+                if (cluster.kafka.cluster_metrics && cluster.kafka.cluster_metrics.total_disk_usage_bytes > 0) {
+                    kafkaDetails['Storage'] = formatBytes(cluster.kafka.cluster_metrics.total_disk_usage_bytes);
+                }
+                componentsHTML += renderComponent('Kafka', 'K', kafkaDetails);
             }
 
             if (cluster.schema_registry && cluster.schema_registry.available) {
-                componentsHTML += renderComponent('Schema Registry', 'SR', {
+                var srDetails = {
                     'Version': cluster.schema_registry.version,
                     'Mode': cluster.schema_registry.mode,
                     'Schemas': cluster.schema_registry.total_schemas
-                });
+                };
+                if (cluster.schema_registry.node_count > 0) {
+                    srDetails['Nodes'] = cluster.schema_registry.node_count;
+                }
+                componentsHTML += renderComponent('Schema Registry', 'SR', srDetails);
             }
 
             if (cluster.kafka_connect && cluster.kafka_connect.available) {
-                componentsHTML += renderComponent('Kafka Connect', 'KC', {
+                var connectDetails = {
                     'Version': cluster.kafka_connect.version,
                     'Connectors': cluster.kafka_connect.total_connectors,
                     'Source': cluster.kafka_connect.source_connectors,
                     'Sink': cluster.kafka_connect.sink_connectors
-                });
+                };
+                if (cluster.kafka_connect.worker_count > 0) {
+                    connectDetails['Workers'] = cluster.kafka_connect.worker_count;
+                }
+                componentsHTML += renderComponent('Kafka Connect', 'KC', connectDetails);
             }
 
             if (cluster.ksqldb && cluster.ksqldb.available) {
-                componentsHTML += renderComponent('ksqlDB', 'KS', {
+                var ksqlDetails = {
                     'Version': cluster.ksqldb.version,
                     'Queries': cluster.ksqldb.queries,
                     'Streams': cluster.ksqldb.streams,
                     'Tables': cluster.ksqldb.tables
-                });
+                };
+                if (cluster.ksqldb.node_count > 0) {
+                    ksqlDetails['Nodes'] = cluster.ksqldb.node_count;
+                }
+                componentsHTML += renderComponent('ksqlDB', 'KS', ksqlDetails);
             }
 
             if (cluster.rest_proxy && cluster.rest_proxy.available) {
@@ -1044,6 +1140,14 @@ func generateReportHTML(report *model.DiscoveryReport) string {
             });
             document.getElementById(tabName + '-content').classList.add('active');
             event.target.classList.add('active');
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            var k = 1024;
+            var sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
     </script>
 </body>

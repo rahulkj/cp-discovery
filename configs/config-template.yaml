@@ -1,0 +1,228 @@
+# ============================================================================
+# Confluent Platform Discovery - Configuration Template
+# ============================================================================
+# Copy this file and fill in your values to get started quickly.
+# Use environment variables (${VAR_NAME}) to keep credentials secure.
+#
+# Quick Start:
+# 1. Copy this file: cp config-template.yaml my-config.yaml
+# 2. Fill in REQUIRED fields (marked with *)
+# 3. Uncomment and fill OPTIONAL fields as needed
+# 4. Run: ./cp-discovery -config my-config.yaml
+# ============================================================================
+
+clusters:
+  # ----------------------------------------------------------------------------
+  # CLUSTER 1 - Replace with your cluster details
+  # ----------------------------------------------------------------------------
+  - name: "my-cluster"  # * REQUIRED: Name for this cluster in reports
+
+    # ==========================================================================
+    # KAFKA CONFIGURATION (REQUIRED)
+    # ==========================================================================
+    kafka:
+      # * REQUIRED: Kafka broker addresses (comma-separated)
+      bootstrap_servers: "localhost:9092"
+
+      # --------------------------------------------------------------------------
+      # SECURITY CONFIGURATION (Optional, but required for secured clusters)
+      # --------------------------------------------------------------------------
+
+      # Security Protocol Options: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+      # security_protocol: "SASL_SSL"
+
+      # SASL Mechanism Options: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER
+      # sasl_mechanism: "SCRAM-SHA-256"
+
+      # SASL Credentials (use environment variables for security)
+      # sasl_username: "${KAFKA_USERNAME}"
+      # sasl_password: "${KAFKA_PASSWORD}"
+
+      # --------------------------------------------------------------------------
+      # SSL/TLS CONFIGURATION (Required when using SSL or SASL_SSL)
+      # --------------------------------------------------------------------------
+
+      # CA Certificate (required for SSL/SASL_SSL to verify broker)
+      # ssl_ca_location: "/path/to/ca-cert.pem"
+
+      # Client Certificate for mutual TLS (optional, only for mTLS)
+      # ssl_cert_location: "/path/to/client-cert.pem"
+      # ssl_key_location: "/path/to/client-key.pem"
+
+      # Password for encrypted private key (optional)
+      # ssl_key_password: "${SSL_KEY_PASSWORD}"
+
+      # Hostname verification: "https" (recommended) or "none" (dev/test only)
+      # ssl_endpoint_identification: "https"
+
+    # ==========================================================================
+    # SHARED AUTHENTICATION (Optional)
+    # Applies to all REST components (SR, Connect, ksqlDB, etc.)
+    # ==========================================================================
+    # shared_auth:
+    #   username: "${CONFLUENT_USERNAME}"
+    #   password: "${CONFLUENT_PASSWORD}"
+
+    # ==========================================================================
+    # SCHEMA REGISTRY (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # schema_registry:
+    #   # URL (auto-discovered as http://<broker-host>:8081 if not specified)
+    #   url: "http://localhost:8081"
+    #
+    #   # Authentication (uses shared_auth if not specified)
+    #   basic_auth_username: "${SR_USERNAME}"
+    #   basic_auth_password: "${SR_PASSWORD}"
+    #
+    #   # OR use Bearer Token
+    #   # bearer_token: "${SR_BEARER_TOKEN}"
+    #
+    #   # OR use API Key
+    #   # api_key: "${SR_API_KEY}"
+    #   # api_key_header: "X-API-Key"
+
+    # ==========================================================================
+    # KAFKA CONNECT (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # kafka_connect:
+    #   # URL (auto-discovered as http://<broker-host>:8083 if not specified)
+    #   url: "http://localhost:8083"
+    #
+    #   # Authentication (uses shared_auth if not specified)
+    #   basic_auth_username: "${CONNECT_USERNAME}"
+    #   basic_auth_password: "${CONNECT_PASSWORD}"
+    #
+    #   # OR use Bearer Token
+    #   # bearer_token: "${CONNECT_BEARER_TOKEN}"
+    #
+    #   # OR use API Key
+    #   # api_key: "${CONNECT_API_KEY}"
+
+    # ==========================================================================
+    # KSQLDB (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # ksqldb:
+    #   # URL (auto-discovered as http://<broker-host>:8088 if not specified)
+    #   url: "http://localhost:8088"
+    #
+    #   # Authentication (uses shared_auth if not specified)
+    #   basic_auth_username: "${KSQLDB_USERNAME}"
+    #   basic_auth_password: "${KSQLDB_PASSWORD}"
+
+    # ==========================================================================
+    # REST PROXY (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # rest_proxy:
+    #   # URL (auto-discovered as http://<broker-host>:8082 if not specified)
+    #   url: "http://localhost:8082"
+    #
+    #   # Authentication (uses shared_auth if not specified)
+    #   basic_auth_username: "${REST_PROXY_USERNAME}"
+    #   basic_auth_password: "${REST_PROXY_PASSWORD}"
+
+    # ==========================================================================
+    # CONTROL CENTER (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # control_center:
+    #   # URL (auto-discovered as http://<broker-host>:9021 if not specified)
+    #   url: "http://localhost:9021"
+    #
+    #   # Authentication (uses shared_auth if not specified)
+    #   basic_auth_username: "${C3_USERNAME}"
+    #   basic_auth_password: "${C3_PASSWORD}"
+
+    # ==========================================================================
+    # PROMETHEUS (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # prometheus:
+    #   # URL (auto-discovered as http://<broker-host>:9090 if not specified)
+    #   url: "http://localhost:9090"
+    #
+    #   # Authentication (optional)
+    #   # basic_auth_username: "${PROM_USERNAME}"
+    #   # basic_auth_password: "${PROM_PASSWORD}"
+
+    # ==========================================================================
+    # ALERTMANAGER (Optional - auto-discovered if not specified)
+    # ==========================================================================
+    # alertmanager:
+    #   # URL (auto-discovered as http://<broker-host>:9093 if not specified)
+    #   url: "http://localhost:9093"
+    #
+    #   # Authentication (optional)
+    #   # basic_auth_username: "${AM_USERNAME}"
+    #   # basic_auth_password: "${AM_PASSWORD}"
+
+    # ==========================================================================
+    # COMPONENT OVERRIDES (Optional)
+    # Use to disable discovery for components not deployed
+    # ==========================================================================
+    # overrides:
+    #   disable_schema_registry: false
+    #   disable_kafka_connect: false
+    #   disable_ksqldb: false
+    #   disable_rest_proxy: false
+    #   disable_control_center: false
+    #   disable_prometheus: false
+    #   disable_alertmanager: false
+
+  # ----------------------------------------------------------------------------
+  # ADDITIONAL CLUSTERS (Optional)
+  # Copy the cluster block above to add more clusters
+  # ----------------------------------------------------------------------------
+  # - name: "cluster-2"
+  #   kafka:
+  #     bootstrap_servers: "broker2:9092"
+  #   # ... (same structure as above)
+
+# ==============================================================================
+# OUTPUT CONFIGURATION
+# ==============================================================================
+output:
+  # Format Options: json, yaml
+  format: "json"
+
+  # Output file path (can use relative or absolute paths)
+  file: "discovery-report.json"
+
+  # Include detailed information:
+  # - Individual topic details (storage, retention, schemas)
+  # - Broker details
+  # - Connector details (class, quickstart, state)
+  # - Schema subjects
+  detailed: true
+
+# ==============================================================================
+# ENVIRONMENT VARIABLES REFERENCE
+# ==============================================================================
+# Set these environment variables before running:
+#
+# KAFKA AUTHENTICATION:
+#   KAFKA_USERNAME          - Kafka SASL username
+#   KAFKA_PASSWORD          - Kafka SASL password
+#   SSL_KEY_PASSWORD        - Password for encrypted SSL private key
+#
+# CONFLUENT PLATFORM COMPONENTS:
+#   CONFLUENT_USERNAME      - Shared username for CP components
+#   CONFLUENT_PASSWORD      - Shared password for CP components
+#
+# OR component-specific:
+#   SR_USERNAME             - Schema Registry username
+#   SR_PASSWORD             - Schema Registry password
+#   CONNECT_USERNAME        - Kafka Connect username
+#   CONNECT_PASSWORD        - Kafka Connect password
+#   KSQLDB_USERNAME         - ksqlDB username
+#   KSQLDB_PASSWORD         - ksqlDB password
+#   C3_USERNAME             - Control Center username
+#   C3_PASSWORD             - Control Center password
+#   PROM_USERNAME           - Prometheus username
+#   PROM_PASSWORD           - Prometheus password
+#   AM_USERNAME             - Alertmanager username
+#   AM_PASSWORD             - Alertmanager password
+#
+# EXAMPLE:
+#   export KAFKA_USERNAME="admin"
+#   export KAFKA_PASSWORD="secret"
+#   export CONFLUENT_USERNAME="cp-admin"
+#   export CONFLUENT_PASSWORD="cp-secret"
+#   ./cp-discovery -config my-config.yaml

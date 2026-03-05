@@ -29,8 +29,6 @@ config.local.yaml
 
 # Output reports
 discovery-report.*
-*.json
-*.yaml
 !config.yaml
 
 # OS

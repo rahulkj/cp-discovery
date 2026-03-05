@@ -1,0 +1,128 @@
+# Confluent Platform Discovery - Authentication Examples
+# This file demonstrates various authentication methods
+
+clusters:
+  # ============================================================================
+  # Example 1: Basic Authentication (Most Common)
+  # ============================================================================
+  - name: "basic-auth-cluster"
+    kafka:
+      bootstrap_servers: "broker1:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    # Use shared auth for all components
+    shared_auth:
+      username: "${CP_USER}"
+      password: "${CP_PASS}"
+
+  # ============================================================================
+  # Example 2: Bearer Token Authentication (OAuth/JWT)
+  # ============================================================================
+  - name: "oauth-cluster"
+    kafka:
+      bootstrap_servers: "broker2:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "OAUTHBEARER"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      bearer_token: "${SR_JWT_TOKEN}"
+
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      bearer_token: "${CONNECT_JWT_TOKEN}"
+
+    ksqldb:
+      url: "https://ksqldb.example.com:8088"
+      bearer_token: "${KSQLDB_JWT_TOKEN}"
+
+  # ============================================================================
+  # Example 3: API Key Authentication
+  # ============================================================================
+  - name: "apikey-cluster"
+    kafka:
+      bootstrap_servers: "broker3:9092"
+
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      api_key: "${SR_API_KEY}"
+      # Uses default header: X-API-Key
+
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      api_key: "${CONNECT_API_KEY}"
+      api_key_header: "X-Connect-API-Key"  # Custom header
+
+    control_center:
+      url: "https://c3.example.com:9021"
+      api_key: "${C3_API_KEY}"
+      api_key_header: "Authorization"  # Some systems use Authorization header
+
+  # ============================================================================
+  # Example 4: Mixed Authentication (Different auth per component)
+  # ============================================================================
+  - name: "mixed-auth-cluster"
+    kafka:
+      bootstrap_servers: "broker4:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-256"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    # Schema Registry with Basic Auth
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      basic_auth_username: "${SR_USER}"
+      basic_auth_password: "${SR_PASS}"
+
+    # Kafka Connect with Bearer Token
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      bearer_token: "${CONNECT_TOKEN}"
+
+    # ksqlDB with API Key
+    ksqldb:
+      url: "https://ksqldb.example.com:8088"
+      api_key: "${KSQLDB_KEY}"
+
+    # Prometheus with Basic Auth
+    prometheus:
+      url: "http://prometheus.example.com:9090"
+      basic_auth_username: "admin"
+      basic_auth_password: "${PROM_PASS}"
+
+  # ============================================================================
+  # Example 5: No Authentication (Local Development)
+  # ============================================================================
+  - name: "local-dev"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+
+    # All components auto-discovered without authentication
+    # schema_registry, kafka_connect, etc. will use default URLs
+
+  # ============================================================================
+  # Example 6: Confluent Cloud
+  # ============================================================================
+  - name: "confluent-cloud"
+    kafka:
+      bootstrap_servers: "${CCLOUD_BOOTSTRAP_SERVERS}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${CCLOUD_API_KEY}"
+      sasl_password: "${CCLOUD_API_SECRET}"
+
+    schema_registry:
+      url: "${CCLOUD_SR_URL}"
+      basic_auth_username: "${CCLOUD_SR_KEY}"
+      basic_auth_password: "${CCLOUD_SR_SECRET}"
+
+output:
+  format: "json"
+  file: "auth-discovery-report.json"
+  detailed: true

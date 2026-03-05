@@ -1,0 +1,106 @@
+# Confluent Platform Discovery - Production Configuration
+# Best practices for production environments
+
+clusters:
+  # ============================================================================
+  # Production Cluster with Full Stack
+  # ============================================================================
+  - name: "prod-us-east"
+
+    # Kafka with SASL_SSL
+    kafka:
+      bootstrap_servers: "${PROD_KAFKA_BROKERS}"  # e.g., "broker1:9093,broker2:9093,broker3:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      sasl_username: "${PROD_KAFKA_USER}"
+      sasl_password: "${PROD_KAFKA_PASS}"
+
+    # Shared credentials for Confluent Platform components
+    shared_auth:
+      username: "${PROD_CP_USER}"
+      password: "${PROD_CP_PASS}"
+
+    # Schema Registry
+    schema_registry:
+      url: "${PROD_SR_URL}"  # e.g., "https://schema-registry-lb.prod.internal:8081"
+      # Uses shared_auth
+
+    # Kafka Connect
+    kafka_connect:
+      url: "${PROD_CONNECT_URL}"  # e.g., "https://kafka-connect-lb.prod.internal:8083"
+      # Uses shared_auth
+
+    # ksqlDB
+    ksqldb:
+      url: "${PROD_KSQLDB_URL}"  # e.g., "https://ksqldb-lb.prod.internal:8088"
+      # Uses shared_auth
+
+    # REST Proxy
+    rest_proxy:
+      url: "${PROD_REST_PROXY_URL}"  # e.g., "https://rest-proxy-lb.prod.internal:8082"
+      # Uses shared_auth
+
+    # Control Center
+    control_center:
+      url: "${PROD_C3_URL}"  # e.g., "https://control-center.prod.internal:9021"
+      # Uses shared_auth
+
+    # Prometheus (usually separate auth)
+    prometheus:
+      url: "${PROD_PROMETHEUS_URL}"  # e.g., "http://prometheus.monitoring.internal:9090"
+      basic_auth_username: "${PROM_USER}"
+      basic_auth_password: "${PROM_PASS}"
+
+    # Alertmanager (usually separate auth)
+    alertmanager:
+      url: "${PROD_ALERTMANAGER_URL}"  # e.g., "http://alertmanager.monitoring.internal:9093"
+      basic_auth_username: "${AM_USER}"
+      basic_auth_password: "${AM_PASS}"
+
+  # ============================================================================
+  # Staging Cluster
+  # ============================================================================
+  - name: "staging-us-east"
+
+    kafka:
+      bootstrap_servers: "${STAGING_KAFKA_BROKERS}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-256"
+      sasl_username: "${STAGING_KAFKA_USER}"
+      sasl_password: "${STAGING_KAFKA_PASS}"
+
+    shared_auth:
+      username: "${STAGING_CP_USER}"
+      password: "${STAGING_CP_PASS}"
+
+    # Components auto-discovered using shared auth
+    # Only override if URLs differ from defaults
+
+  # ============================================================================
+  # DR Cluster
+  # ============================================================================
+  - name: "prod-us-west-dr"
+
+    kafka:
+      bootstrap_servers: "${DR_KAFKA_BROKERS}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      sasl_username: "${DR_KAFKA_USER}"
+      sasl_password: "${DR_KAFKA_PASS}"
+
+    shared_auth:
+      username: "${DR_CP_USER}"
+      password: "${DR_CP_PASS}"
+
+    # Disable components not deployed in DR
+    overrides:
+      disable_ksqldb: true
+      disable_control_center: true
+
+# ==============================================================================
+# Output Configuration
+# ==============================================================================
+output:
+  format: "json"
+  file: "/var/log/confluent-discovery/production-report.json"
+  detailed: true

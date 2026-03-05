@@ -11,6 +11,18 @@ A comprehensive Go-based tool to scan and discover multiple Confluent Platform i
 - **Parallel Discovery**: Scans multiple clusters and components simultaneously
 - **Flexible Output**: JSON, YAML, and console summary formats
 
+## 🆕 Recent Enhancements
+
+- ✅ **SSL/TLS Support**: Full SSL certificate configuration for secure Kafka connections
+- ✅ **Topic Storage Tracking**: Calculates per-topic and cluster-wide storage from partition offsets
+- ✅ **Schema Mapping**: Auto-links Schema Registry subjects to Kafka topics
+- ✅ **Enhanced Connector Discovery**:
+  - Uses `/connectors?expand=status` and `/connectors?expand=info` API calls
+  - Captures `connector.class` and `quickstart` template information
+  - Accurate source/sink classification from Kafka Connect API
+- ✅ **Controller Count**: Displays KRaft controller count or ZooKeeper controller status
+- ✅ **Always-On Details**: Topic and connector information now always included (no `-detailed` flag needed)
+
 ## Features
 
 - **Multi-Cluster Discovery**: Scan multiple Confluent Platform clusters in parallel
@@ -34,13 +46,27 @@ A comprehensive Go-based tool to scan and discover multiple Confluent Platform i
   - Per-component or shared authentication
 
 - **Detailed Metrics Collection**:
-  - **Kafka Cluster**: Broker count, controller detection, topic inventory
-  - **Topics**: Internal vs external categorization, partitions, replication factors, retention policies
+  - **Kafka Cluster**:
+    - Broker count, controller detection (KRaft/ZooKeeper), controller node count
+    - Topic inventory with storage size, retention, and partition details
+    - Cluster-wide storage metrics calculated from partition offsets
+  - **Topics**:
+    - Internal vs external categorization
+    - Partitions, replication factors, retention policies
+    - Per-topic storage size (calculated from offsets)
+    - Associated Schema Registry subjects auto-linked
   - **Consumer Groups**: Total count, active groups, member counts, lag metrics
-  - **Security**: ACLs, authentication mechanisms, SSL/TLS detection
+  - **Security**:
+    - ACLs, authentication mechanisms, SSL/TLS detection
+    - Full SSL/TLS support with client certificates
   - **Cluster Configuration**: Important cluster-level settings
-  - **Schema Registry**: Schema counts, subjects, node counts, version
-  - **Kafka Connect**: Connector inventory (source/sink), worker counts, connector states
+  - **Schema Registry**:
+    - Schema counts, subjects, node counts, version
+    - Subject-to-topic mapping for data lineage
+  - **Kafka Connect**:
+    - Connector inventory with accurate source/sink classification
+    - Connector class and quickstart template detection
+    - Worker counts, connector states, task counts
   - **ksqlDB**: Queries, streams, tables, node counts
   - **Control Center**:
     - Monitored Kafka clusters with broker/topic/partition counts
@@ -84,6 +110,38 @@ go mod download
 go build -o cp-discovery
 ```
 
+## Getting Started
+
+### Step 1: Copy the Configuration Template
+```bash
+cp configs/config-template.yaml my-config.yaml
+```
+
+### Step 2: Edit Your Configuration
+Open `my-config.yaml` and fill in at minimum:
+```yaml
+clusters:
+  - name: "my-cluster"
+    kafka:
+      bootstrap_servers: "your-broker:9092"  # REQUIRED
+```
+
+### Step 3: Run Discovery
+```bash
+./cp-discovery -config my-config.yaml -detailed
+```
+
+### Step 4: View Results
+The tool outputs:
+- **Console**: Summary with key metrics
+- **JSON/YAML**: Detailed report saved to `discovery-report.json`
+- **Web UI** (optional): Run with `-view` flag
+
+```bash
+# View in browser
+./cp-discovery -config my-config.yaml -view
+```
+
 ## Quick Start Configuration
 
 ### Minimal Configuration (Just 2 Fields!)
@@ -121,11 +179,18 @@ clusters:
 
 ### Configuration Files
 
-- **[config.yaml](config.yaml)** - Simple examples to get started
-- **[config-minimal.yaml](config-minimal.yaml)** - Minimal configurations (2-6 fields)
-- **[config-auth-examples.yaml](config-auth-examples.yaml)** - Authentication patterns (Basic Auth, Bearer Token, API Key)
-- **[config-production.yaml](config-production.yaml)** - Production-ready multi-environment setup
-- **[config-complete.yaml](config-complete.yaml)** - Complete reference with all available options
+**Getting Started:**
+- **[config-template.yaml](configs/config-template.yaml)** - 📋 **START HERE** - Copy and fill in your values
+- **[config.yaml](configs/config.yaml)** - Simple working examples
+- **[config-minimal.yaml](configs/config-minimal.yaml)** - Minimal configurations (2-6 fields)
+
+**Reference & Examples:**
+- **[config-complete.yaml](configs/config-complete.yaml)** - Complete reference with all available properties
+- **[config-auth-examples.yaml](configs/config-auth-examples.yaml)** - Authentication patterns (Basic Auth, Bearer Token, API Key)
+- **[config-ssl-examples.yaml](configs/config-ssl-examples.yaml)** - SSL/TLS configuration examples (One-way SSL, mTLS, SASL_SSL)
+- **[config-production.yaml](configs/config-production.yaml)** - Production-ready multi-environment setup
+
+**Documentation:**
 - **[CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md)** - Comprehensive configuration documentation
 
 ### Technical Documentation
@@ -190,6 +255,69 @@ Supported values for `sasl_mechanism`:
 - `PLAIN`
 - `SCRAM-SHA-256`
 - `SCRAM-SHA-512`
+
+## Configuration Properties Reference
+
+### Quick Reference - All Available Properties
+
+<details>
+<summary><b>Click to expand full configuration properties</b></summary>
+
+#### Kafka Configuration (Required)
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `bootstrap_servers` | string | ✅ Yes | Comma-separated broker addresses |
+| `security_protocol` | string | No | PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL |
+| `sasl_mechanism` | string | No | PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER |
+| `sasl_username` | string | No | SASL username (use env vars) |
+| `sasl_password` | string | No | SASL password (use env vars) |
+| `ssl_ca_location` | string | No | Path to CA certificate |
+| `ssl_cert_location` | string | No | Path to client certificate (mTLS) |
+| `ssl_key_location` | string | No | Path to client private key (mTLS) |
+| `ssl_key_password` | string | No | Password for encrypted private key |
+| `ssl_endpoint_identification` | string | No | Hostname verification: `https` or `none` |
+
+#### Shared Authentication (Optional)
+| Property | Type | Description |
+|----------|------|-------------|
+| `username` | string | Username for all REST components |
+| `password` | string | Password for all REST components |
+
+#### Component Configuration (All Optional - Auto-discovered)
+Each component supports:
+- `url` - Component URL (auto-discovered if not specified)
+- `basic_auth_username` / `basic_auth_password` - Basic authentication
+- `bearer_token` - Bearer token authentication (OAuth/JWT)
+- `api_key` / `api_key_header` - API key authentication
+
+**Supported Components:**
+- `schema_registry` - Default: http://broker-host:8081
+- `kafka_connect` - Default: http://broker-host:8083
+- `ksqldb` - Default: http://broker-host:8088
+- `rest_proxy` - Default: http://broker-host:8082
+- `control_center` - Default: http://broker-host:9021
+- `prometheus` - Default: http://broker-host:9090
+- `alertmanager` - Default: http://broker-host:9093
+
+#### Component Overrides (Optional)
+| Property | Type | Description |
+|----------|------|-------------|
+| `disable_schema_registry` | boolean | Skip Schema Registry discovery |
+| `disable_kafka_connect` | boolean | Skip Kafka Connect discovery |
+| `disable_ksqldb` | boolean | Skip ksqlDB discovery |
+| `disable_rest_proxy` | boolean | Skip REST Proxy discovery |
+| `disable_control_center` | boolean | Skip Control Center discovery |
+| `disable_prometheus` | boolean | Skip Prometheus discovery |
+| `disable_alertmanager` | boolean | Skip Alertmanager discovery |
+
+#### Output Configuration
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `format` | string | json | Output format: `json` or `yaml` |
+| `file` | string | discovery-report.json | Output file path |
+| `detailed` | boolean | false | Include detailed topic/connector info |
+
+</details>
 
 ## Usage
 
@@ -494,17 +622,75 @@ If you encounter connection errors:
 3. Validate credentials
 4. Ensure services are running
 
-### SSL/TLS Issues
+### SSL/TLS Configuration
 
-For SSL certificate problems:
+The tool supports SSL/TLS encryption for Kafka connections:
 
 ```yaml
-# Add SSL configuration (future enhancement)
 kafka:
-  ssl_ca_location: "/path/to/ca-cert"
-  ssl_certificate_location: "/path/to/client-cert"
-  ssl_key_location: "/path/to/client-key"
+  bootstrap_servers: "broker:9093"
+  security_protocol: "SSL"  # or "SASL_SSL"
+
+  # SSL Certificate Configuration
+  ssl_ca_location: "/path/to/ca-cert.pem"
+  ssl_cert_location: "/path/to/client-cert.pem"
+  ssl_key_location: "/path/to/client-key.pem"
+  ssl_key_password: "${SSL_KEY_PASSWORD}"  # Optional, if key is encrypted
+  ssl_endpoint_identification: "https"  # Optional, default is "https"
 ```
+
+**SSL Configuration Options:**
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `ssl_ca_location` | Path to CA certificate file | Yes (for SSL) |
+| `ssl_cert_location` | Path to client certificate file | Yes (for mTLS) |
+| `ssl_key_location` | Path to client private key file | Yes (for mTLS) |
+| `ssl_key_password` | Password for encrypted private key | No |
+| `ssl_endpoint_identification` | Hostname verification algorithm (`https` or `none`) | No |
+
+**Common SSL Scenarios:**
+
+1. **SSL without client authentication:**
+```yaml
+kafka:
+  bootstrap_servers: "broker:9093"
+  security_protocol: "SSL"
+  ssl_ca_location: "/path/to/ca-cert.pem"
+```
+
+2. **SSL with mutual TLS (mTLS):**
+```yaml
+kafka:
+  bootstrap_servers: "broker:9093"
+  security_protocol: "SSL"
+  ssl_ca_location: "/path/to/ca-cert.pem"
+  ssl_cert_location: "/path/to/client-cert.pem"
+  ssl_key_location: "/path/to/client-key.pem"
+```
+
+3. **SASL_SSL (SASL with TLS encryption):**
+```yaml
+kafka:
+  bootstrap_servers: "broker:9093"
+  security_protocol: "SASL_SSL"
+  sasl_mechanism: "PLAIN"
+  sasl_username: "kafka-user"
+  sasl_password: "${KAFKA_PASSWORD}"
+  ssl_ca_location: "/path/to/ca-cert.pem"
+```
+
+**Troubleshooting SSL Issues:**
+
+If you encounter SSL certificate errors:
+
+1. **Verify certificate paths** - Ensure all certificate files exist and are readable
+2. **Check certificate validity** - Certificates must not be expired
+3. **Validate certificate chain** - CA certificate must match the broker's certificate
+4. **Disable hostname verification** (not recommended for production):
+   ```yaml
+   ssl_endpoint_identification: "none"
+   ```
 
 ### Permission Errors
 

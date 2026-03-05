@@ -36,6 +36,23 @@ func DiscoverKafka(config model.KafkaConfig, detailed bool) (model.KafkaReport, 
 		adminConfig["sasl.password"] = config.SaslPassword
 	}
 
+	// Add SSL/TLS configuration
+	if config.SslCaLocation != "" {
+		adminConfig["ssl.ca.location"] = config.SslCaLocation
+	}
+	if config.SslCertLocation != "" {
+		adminConfig["ssl.certificate.location"] = config.SslCertLocation
+	}
+	if config.SslKeyLocation != "" {
+		adminConfig["ssl.key.location"] = config.SslKeyLocation
+	}
+	if config.SslKeyPassword != "" {
+		adminConfig["ssl.key.password"] = config.SslKeyPassword
+	}
+	if config.SslEndpointIdentification != "" {
+		adminConfig["ssl.endpoint.identification.algorithm"] = config.SslEndpointIdentification
+	}
+
 	// Create admin client
 	adminClient, err := kafka.NewAdminClient(&adminConfig)
 	if err != nil {
@@ -57,6 +74,9 @@ func DiscoverKafka(config model.KafkaConfig, detailed bool) (model.KafkaReport, 
 
 	// Detect controller type (ZooKeeper vs KRaft)
 	report.ControllerType = detectControllerType(metadata)
+
+	// Estimate controller count based on cluster type
+	report.ControllerCount = estimateControllerCount(report.ControllerType, report.BrokerCount)
 
 	// Get broker information
 	for _, broker := range metadata.Brokers {
@@ -203,6 +223,34 @@ func detectControllerType(metadata *kafka.Metadata) string {
 	return "zookeeper"
 }
 
+func estimateControllerCount(controllerType string, brokerCount int) int {
+	if controllerType == "kraft" {
+		// KRaft mode can have:
+		// 1. Combined mode: All brokers are also controllers
+		// 2. Dedicated mode: Separate controller nodes (typically 3)
+		// 3. Mixed mode: Some brokers are controllers
+
+		// For typical production KRaft deployments:
+		// - Small clusters (1-3 brokers): Combined mode (all are controllers)
+		// - Medium/Large clusters: Dedicated controllers (usually 3)
+
+		if brokerCount <= 3 {
+			// Small cluster, likely combined mode
+			return brokerCount
+		} else {
+			// Larger cluster, likely has dedicated controllers
+			// Standard is 3 controllers for HA
+			return 3
+		}
+	} else if controllerType == "zookeeper" {
+		// ZooKeeper mode: 1 active controller elected from brokers
+		return 1
+	}
+
+	// Unknown type
+	return 0
+}
+
 func isSequentialBrokerIDs(ids []int32, startFrom int32) bool {
 	if len(ids) == 0 {
 		return false
@@ -319,6 +367,23 @@ func calculateTopicSize(config model.KafkaConfig, topicName string, partitionCou
 		consumerConfig["sasl.mechanism"] = config.SaslMechanism
 		consumerConfig["sasl.username"] = config.SaslUsername
 		consumerConfig["sasl.password"] = config.SaslPassword
+	}
+
+	// Add SSL/TLS configuration
+	if config.SslCaLocation != "" {
+		consumerConfig["ssl.ca.location"] = config.SslCaLocation
+	}
+	if config.SslCertLocation != "" {
+		consumerConfig["ssl.certificate.location"] = config.SslCertLocation
+	}
+	if config.SslKeyLocation != "" {
+		consumerConfig["ssl.key.location"] = config.SslKeyLocation
+	}
+	if config.SslKeyPassword != "" {
+		consumerConfig["ssl.key.password"] = config.SslKeyPassword
+	}
+	if config.SslEndpointIdentification != "" {
+		consumerConfig["ssl.endpoint.identification.algorithm"] = config.SslEndpointIdentification
 	}
 
 	// Create consumer

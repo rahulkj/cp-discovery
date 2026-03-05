@@ -1,0 +1,69 @@
+# Advanced Configuration Example
+# Shows all options with custom URLs and overrides
+
+clusters:
+  - name: "production"
+    kafka:
+      bootstrap_servers: "broker1:9092,broker2:9092,broker3:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      sasl_username: "${PROD_KAFKA_USER}"
+      sasl_password: "${PROD_KAFKA_PASS}"
+
+    # Shared authentication - will be used for all components unless overridden
+    shared_auth:
+      username: "${PROD_CP_USER}"
+      password: "${PROD_CP_PASS}"
+
+    # Auto-discovered URLs (based on first broker host):
+    # - schema_registry: https://broker1:8081
+    # - kafka_connect: https://broker1:8083
+    # - ksqldb: https://broker1:8088
+    # - rest_proxy: https://broker1:8082
+
+  - name: "staging"
+    kafka:
+      bootstrap_servers: "staging-kafka:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "staging-user"
+      sasl_password: "staging-pass"
+
+    # Custom URLs (override auto-discovery)
+    schema_registry:
+      url: "https://staging-sr.example.com:8081"
+      # Uses shared_auth if not specified
+
+    kafka_connect:
+      url: "https://staging-connect.example.com:8083"
+      # Override shared auth for this component
+      basic_auth_username: "connect-admin"
+      basic_auth_password: "connect-secret"
+
+    ksqldb:
+      url: "https://staging-ksql.example.com:8088"
+
+    # Don't discover REST Proxy for this cluster
+    overrides:
+      disable_rest_proxy: true
+
+    # Shared auth for components that don't have specific auth
+    shared_auth:
+      username: "staging-admin"
+      password: "staging-secret"
+
+  - name: "development"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+
+    # No shared_auth = no authentication
+    # URLs will be auto-discovered:
+    # - http://localhost:8081 (Schema Registry)
+    # - http://localhost:8083 (Kafka Connect)
+    # - http://localhost:8088 (ksqlDB)
+    # - http://localhost:8082 (REST Proxy)
+
+output:
+  format: "json"
+  file: "discovery-report.json"
+  detailed: true

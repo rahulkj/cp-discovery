@@ -1,0 +1,49 @@
+# Minimal Configuration Example
+# The tool will auto-discover component URLs based on standard ports
+
+clusters:
+  # Example 1: Absolute minimal - local PLAINTEXT cluster
+  - name: "local-cluster"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+
+  # Example 2: Minimal with security
+  - name: "secure-cluster"
+    kafka:
+      bootstrap_servers: "kafka.example.com:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "admin"
+      sasl_password: "secret"
+    # Shared auth will be used for all components (SR, Connect, ksqlDB, REST)
+    shared_auth:
+      username: "admin"
+      password: "secret"
+
+  # Example 3: Using environment variables
+  - name: "prod-cluster"
+    kafka:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      security_protocol: "${KAFKA_SECURITY_PROTOCOL}"
+      sasl_mechanism: "${KAFKA_SASL_MECHANISM}"
+      sasl_username: "${KAFKA_USERNAME}"
+      sasl_password: "${KAFKA_PASSWORD}"
+    shared_auth:
+      username: "${CP_USERNAME}"
+      password: "${CP_PASSWORD}"
+
+  # Example 4: Disable specific components
+  - name: "kafka-only-cluster"
+    kafka:
+      bootstrap_servers: "kafka-minimal:9092"
+    overrides:
+      disable_schema_registry: true
+      disable_kafka_connect: true
+      disable_ksqldb: true
+      disable_rest_proxy: true
+
+# Output configuration (optional - defaults to JSON)
+output:
+  format: "json"
+  file: "discovery-report.json"
+  detailed: true

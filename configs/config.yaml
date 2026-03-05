@@ -37,7 +37,7 @@ clusters:
       password: "${CP_PASS}"
 
   # ============================================================================
-  # Production with Custom URLs
+  # Production with Custom URLs and SSL/TLS
   # ============================================================================
   # - name: "production-cluster"
   #   kafka:
@@ -46,6 +46,13 @@ clusters:
   #     sasl_mechanism: "SCRAM-SHA-512"
   #     sasl_username: "${PROD_KAFKA_USER}"
   #     sasl_password: "${PROD_KAFKA_PASS}"
+  #
+  #     # SSL/TLS Configuration
+  #     ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+  #     ssl_cert_location: "/etc/kafka/ssl/client-cert.pem"
+  #     ssl_key_location: "/etc/kafka/ssl/client-key.pem"
+  #     ssl_key_password: "${SSL_KEY_PASSWORD}"
+  #     ssl_endpoint_identification: "https"
 
   #   shared_auth:
   #     username: "${PROD_CP_USER}"

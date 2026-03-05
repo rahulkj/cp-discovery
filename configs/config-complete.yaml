@@ -1,0 +1,156 @@
+# Confluent Platform Discovery - Complete Configuration Reference
+# This file shows ALL available configuration options
+
+clusters:
+  # ============================================================================
+  # CLUSTER CONFIGURATION - Complete Example
+  # ============================================================================
+  - name: "production-cluster"
+
+    # ------------------------------------------------------------------------
+    # KAFKA CONFIGURATION (Required)
+    # ------------------------------------------------------------------------
+    kafka:
+      # REQUIRED: Comma-separated list of bootstrap servers
+      bootstrap_servers: "broker1:9092,broker2:9092,broker3:9092"
+
+      # Security Protocol: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+      security_protocol: "SASL_SSL"
+
+      # SASL Mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER
+      sasl_mechanism: "SCRAM-SHA-512"
+
+      # SASL Credentials (use environment variables for security)
+      sasl_username: "${KAFKA_USERNAME}"
+      sasl_password: "${KAFKA_PASSWORD}"
+
+      # SSL/TLS Configuration (Required for SSL and SASL_SSL protocols)
+      # Path to CA certificate for server verification
+      ssl_ca_location: "/etc/kafka/ssl/ca-cert.pem"
+
+      # Client certificate for mutual TLS (mTLS) - Optional
+      ssl_cert_location: "/etc/kafka/ssl/client-cert.pem"
+      ssl_key_location: "/etc/kafka/ssl/client-key.pem"
+
+      # Password for encrypted private key - Optional
+      ssl_key_password: "${SSL_KEY_PASSWORD}"
+
+      # Hostname verification: "https" (default) or "none" (disable, not recommended for production)
+      ssl_endpoint_identification: "https"
+
+    # ------------------------------------------------------------------------
+    # SHARED AUTHENTICATION (Optional)
+    # Applied to all REST components that don't have specific auth configured
+    # ------------------------------------------------------------------------
+    shared_auth:
+      username: "${CONFLUENT_USERNAME}"
+      password: "${CONFLUENT_PASSWORD}"
+
+    # ------------------------------------------------------------------------
+    # SCHEMA REGISTRY (Optional)
+    # ------------------------------------------------------------------------
+    schema_registry:
+      # URL to Schema Registry (auto-discovered if not specified)
+      url: "https://schema-registry.example.com:8081"
+
+      # Basic Authentication
+      basic_auth_username: "${SR_USERNAME}"
+      basic_auth_password: "${SR_PASSWORD}"
+
+      # OR Bearer Token Authentication (OAuth/JWT)
+      # bearer_token: "${SR_BEARER_TOKEN}"
+
+      # OR API Key Authentication
+      # api_key: "${SR_API_KEY}"
+      # api_key_header: "X-API-Key"  # Optional: defaults to "X-API-Key"
+
+    # ------------------------------------------------------------------------
+    # KAFKA CONNECT (Optional)
+    # ------------------------------------------------------------------------
+    kafka_connect:
+      url: "https://kafka-connect.example.com:8083"
+      basic_auth_username: "${CONNECT_USERNAME}"
+      basic_auth_password: "${CONNECT_PASSWORD}"
+      # bearer_token: "${CONNECT_BEARER_TOKEN}"
+      # api_key: "${CONNECT_API_KEY}"
+      # api_key_header: "Authorization"
+
+    # ------------------------------------------------------------------------
+    # KSQLDB (Optional)
+    # ------------------------------------------------------------------------
+    ksqldb:
+      url: "https://ksqldb.example.com:8088"
+      basic_auth_username: "${KSQLDB_USERNAME}"
+      basic_auth_password: "${KSQLDB_PASSWORD}"
+      # bearer_token: "${KSQLDB_BEARER_TOKEN}"
+      # api_key: "${KSQLDB_API_KEY}"
+
+    # ------------------------------------------------------------------------
+    # REST PROXY (Optional)
+    # ------------------------------------------------------------------------
+    rest_proxy:
+      url: "https://rest-proxy.example.com:8082"
+      basic_auth_username: "${REST_PROXY_USERNAME}"
+      basic_auth_password: "${REST_PROXY_PASSWORD}"
+      # bearer_token: "${REST_PROXY_BEARER_TOKEN}"
+      # api_key: "${REST_PROXY_API_KEY}"
+
+    # ------------------------------------------------------------------------
+    # CONTROL CENTER (Optional)
+    # ------------------------------------------------------------------------
+    control_center:
+      url: "https://control-center.example.com:9021"
+      basic_auth_username: "${C3_USERNAME}"
+      basic_auth_password: "${C3_PASSWORD}"
+      # bearer_token: "${C3_BEARER_TOKEN}"
+      # api_key: "${C3_API_KEY}"
+
+    # ------------------------------------------------------------------------
+    # PROMETHEUS (Optional)
+    # ------------------------------------------------------------------------
+    prometheus:
+      url: "http://prometheus.example.com:9090"
+      # basic_auth_username: "${PROMETHEUS_USERNAME}"
+      # basic_auth_password: "${PROMETHEUS_PASSWORD}"
+      # bearer_token: "${PROMETHEUS_BEARER_TOKEN}"
+      # api_key: "${PROMETHEUS_API_KEY}"
+
+    # ------------------------------------------------------------------------
+    # ALERTMANAGER (Optional)
+    # ------------------------------------------------------------------------
+    alertmanager:
+      url: "http://alertmanager.example.com:9093"
+      # basic_auth_username: "${ALERTMANAGER_USERNAME}"
+      # basic_auth_password: "${ALERTMANAGER_PASSWORD}"
+      # bearer_token: "${ALERTMANAGER_BEARER_TOKEN}"
+      # api_key: "${ALERTMANAGER_API_KEY}"
+
+    # ------------------------------------------------------------------------
+    # COMPONENT OVERRIDES (Optional)
+    # Explicitly disable component discovery
+    # ------------------------------------------------------------------------
+    overrides:
+      disable_schema_registry: false
+      disable_kafka_connect: false
+      disable_ksqldb: false
+      disable_rest_proxy: false
+      disable_control_center: false
+      disable_prometheus: false
+      disable_alertmanager: false
+
+# ==============================================================================
+# OUTPUT CONFIGURATION
+# ==============================================================================
+output:
+  # Format: json or yaml
+  format: "json"
+
+  # Output file path
+  file: "discovery-report.json"
+
+  # Detailed output includes:
+  # - Individual topic details
+  # - Broker details
+  # - Connector details
+  # - Schema subjects
+  detailed: true
