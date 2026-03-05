@@ -103,12 +103,122 @@ sudo apt-get install librdkafka-dev
 sudo yum install librdkafka-devel
 ```
 
-### Build the Tool
+### Quick Build
 
 ```bash
+# Simple build for local development
+make build
+
+# Or manually
 go mod download
-go build -o cp-discovery
+go build -o bin/cp-discovery ./cmd/cp-discovery
 ```
+
+For production builds and cross-platform binaries, see the [Building from Source](#building-from-source) section below.
+
+## Building from Source
+
+The project includes several build options located in the `scripts/` directory:
+
+### Using Make (Recommended for Development)
+
+The Makefile provides convenient targets for common tasks:
+
+```bash
+# Build the binary (output: bin/cp-discovery)
+make build
+
+# Build with optimizations (smaller binary)
+make build-release
+
+# Install Go dependencies
+make install
+
+# Run tests
+make test
+
+# Format and vet code
+make fmt
+make vet
+
+# Clean build artifacts
+make clean
+
+# Install to system (requires sudo)
+make install-bin
+
+# Show all available targets
+make help
+```
+
+### Using Build Scripts
+
+#### All Platforms (scripts/build-all.sh)
+
+Build for all supported platforms (macOS, Linux):
+
+```bash
+./scripts/build-all.sh
+```
+
+This will create binaries in the `dist/` directory:
+- `dist/cp-discovery_darwin_amd64/cp-discovery` - macOS Intel
+- `dist/cp-discovery_darwin_arm64/cp-discovery` - macOS Apple Silicon
+- `dist/cp-discovery_linux_amd64/cp-discovery` - Linux Intel/AMD (requires Docker)
+- `dist/cp-discovery_linux_arm64/cp-discovery` - Linux ARM (requires Docker)
+
+#### Platform-Specific Builds
+
+**macOS and Linux (via Docker):**
+```bash
+./scripts/build.sh
+```
+
+**Linux only (requires Docker):**
+```bash
+./scripts/build-linux.sh
+```
+
+### Using GoReleaser (Production Releases)
+
+For production releases with proper versioning and archives:
+
+```bash
+# Install GoReleaser (if not already installed)
+brew install goreleaser
+
+# Create a release build
+goreleaser release --snapshot --clean
+
+# Or with a version tag
+git tag v1.0.0
+goreleaser release --clean
+```
+
+This creates:
+- Cross-platform binaries for macOS (amd64, arm64) and Linux (amd64, arm64)
+- Compressed archives with checksums
+- Release artifacts in `dist/`
+
+### Build Requirements
+
+**For macOS builds:**
+- Go 1.21 or later
+- librdkafka (install via `brew install librdkafka`)
+
+**For Linux builds:**
+- Docker (for cross-compilation)
+- The build scripts handle librdkafka installation automatically
+
+**For Windows builds:**
+- Currently not supported in the build scripts
+- Requires complex MinGW cross-compilation setup
+
+### Binary Location
+
+- `make build` → `bin/cp-discovery`
+- Build scripts → `dist/cp-discovery_<platform>_<arch>/cp-discovery`
+- GoReleaser → `dist/cp-discovery_<version>_<platform>_<arch>/cp-discovery`
 
 ## Getting Started
 
@@ -128,7 +238,7 @@ clusters:
 
 ### Step 3: Run Discovery
 ```bash
-./cp-discovery -config my-config.yaml -detailed
+./bin/cp-discovery -config my-config.yaml -detailed
 ```
 
 ### Step 4: View Results
@@ -139,7 +249,7 @@ The tool outputs:
 
 ```bash
 # View in browser
-./cp-discovery -config my-config.yaml -view
+./bin/cp-discovery -config my-config.yaml -view
 ```
 
 ## Quick Start Configuration
@@ -321,17 +431,43 @@ Each component supports:
 
 ## Usage
 
-### Basic Usage
+### Running the Tool
+
+After building, the binary will be located at `bin/cp-discovery` (if using make) or in the `dist/` directory (if using build scripts).
+
+#### Basic Usage
 
 ```bash
-./cp-discovery
+# If built with make
+./bin/cp-discovery
+
+# If built with build scripts
+./dist/cp-discovery_darwin_arm64/cp-discovery  # adjust path for your platform
 ```
 
-### Custom Configuration File
+#### With Custom Configuration
 
 ```bash
-./cp-discovery -config /path/to/config.yaml
+./bin/cp-discovery -config /path/to/config.yaml
 ```
+
+#### Common Options
+
+```bash
+# Run with detailed output
+./bin/cp-discovery -detailed
+
+# Change output format to YAML
+./bin/cp-discovery -format yaml -output report.yaml
+
+# Run and view results in browser
+./bin/cp-discovery -view
+
+# Specify custom output file
+./bin/cp-discovery -output /tmp/my-report.json
+```
+
+For all available command-line options, see [Command-Line Arguments](#command-line-arguments-new) below.
 
 ## Output
 
