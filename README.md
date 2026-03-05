@@ -1,18 +1,57 @@
 # Confluent Platform Discovery Tool
 
-A comprehensive Go-based tool to scan and discover multiple Confluent Platform installations, gathering detailed metrics and component information.
+A **pure Go** tool to scan and discover multiple Confluent Platform installations, gathering detailed metrics and component information.
+
+🎯 **Single binary** • 🚀 **No dependencies** • 📊 **Interactive viewer** • ⚡ **Fast parallel discovery**
+
+```bash
+# Build once, run anywhere
+goreleaser build --clean --snapshot
+
+# Discover your clusters
+./dist/cp-discovery-Darwin-arm64 -config my-config.yaml -output data.json
+
+# View results in browser
+open viewer.html
+```
 
 ## ✨ Why This Tool?
 
+### Easy to Use
 - **Minimal Configuration**: Only 2 fields required! Auto-discovers all component URLs
 - **Smart Defaults**: Reduces config from 50+ fields to as few as 2 fields (88% reduction!)
 - **Secure by Default**: Support for all Kafka security protocols and shared authentication
 - **Environment Variables**: Keep secrets safe with `${VAR}` syntax
+
+### Pure Go Implementation
+- **No Dependencies**: Single static binary - no librdkafka or C libraries required
+- **Cross-Platform**: Build for Linux, macOS, Windows without Docker
+- **Fast Compilation**: Quick builds with true cross-compilation
+- **Easy Distribution**: Just copy the binary - it works everywhere
+
+### Powerful Features
+- **Real-Time Progress**: Interactive progress bar shows discovery status as it happens
 - **Parallel Discovery**: Scans multiple clusters and components simultaneously
-- **Flexible Output**: JSON, YAML, and console summary formats
+- **Flexible Output**: JSON, YAML, console summary, and interactive web viewer
+- **Comprehensive Metrics**: Topics, partitions, storage, connectors, consumer groups, and more
+- **Security Support**: SASL/PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, SSL/TLS, mTLS
 
 ## 🆕 Recent Enhancements
 
+### v2.0 - Pure Go Migration (Latest)
+- ✅ **Pure Go Implementation**: Migrated from `confluent-kafka-go` to `kafka-go` (pure Go)
+  - No more CGO dependencies or librdkafka requirement
+  - True cross-compilation without Docker
+  - Smaller, faster builds with single static binary
+- ✅ **Interactive Progress Bar**: Real-time visual feedback during discovery
+  - Shows current cluster and component being discovered
+  - Color-coded progress with percentage and completion count
+  - Three-stage process indicator (Discovery → Report → Summary)
+- ✅ **Simplified Distribution**: Binary + `viewer.html` = complete solution
+- ✅ **Standalone Web Viewer**: Interactive HTML viewer with file upload (no server required)
+- ✅ **Cleaner CLI**: Removed embedded web server, simplified flags
+
+### Previous Enhancements
 - ✅ **SSL/TLS Support**: Full SSL certificate configuration for secure Kafka connections
 - ✅ **Topic Storage Tracking**: Calculates per-topic and cluster-wide storage from partition offsets
 - ✅ **Schema Mapping**: Auto-links Schema Registry subjects to Kafka topics
@@ -21,7 +60,7 @@ A comprehensive Go-based tool to scan and discover multiple Confluent Platform i
   - Captures `connector.class` and `quickstart` template information
   - Accurate source/sink classification from Kafka Connect API
 - ✅ **Controller Count**: Displays KRaft controller count or ZooKeeper controller status
-- ✅ **Always-On Details**: Topic and connector information now always included (no `-detailed` flag needed)
+- ✅ **Always-On Details**: Topic and connector information always included
 
 ## Features
 
@@ -82,175 +121,233 @@ A comprehensive Go-based tool to scan and discover multiple Confluent Platform i
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 - Access to Confluent Platform installations
-- librdkafka (for confluent-kafka-go)
 
-### Install librdkafka
-
-**macOS:**
-```bash
-brew install librdkafka
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install librdkafka-dev
-```
-
-**RHEL/CentOS:**
-```bash
-sudo yum install librdkafka-devel
-```
+**No external dependencies required!** This tool uses pure Go libraries and compiles to a single binary.
 
 ### Quick Build
 
 ```bash
-# Simple build for local development
+# Using Make (recommended)
 make build
 
-# Or manually
+# Or manually with Go
 go mod download
 go build -o bin/cp-discovery ./cmd/cp-discovery
+
+# Or use GoReleaser for production builds
+goreleaser build --clean --snapshot
 ```
 
-For production builds and cross-platform binaries, see the [Building from Source](#building-from-source) section below.
+The binary will be created at:
+- **Make**: `bin/cp-discovery`
+- **Manual**: `cp-discovery` (current directory)
+- **GoReleaser**: `dist/cp-discovery-<OS>-<ARCH>`
+
+For multi-platform builds and releases, see the [Building from Source](#building-from-source) section below.
 
 ## Building from Source
 
-The project includes several build options located in the `scripts/` directory:
+### Using GoReleaser (Recommended)
 
-### Using Make (Recommended for Development)
-
-The Makefile provides convenient targets for common tasks:
+GoReleaser provides the easiest way to build cross-platform binaries:
 
 ```bash
-# Build the binary (output: bin/cp-discovery)
-make build
-
-# Build with optimizations (smaller binary)
-make build-release
-
-# Install Go dependencies
-make install
-
-# Run tests
-make test
-
-# Format and vet code
-make fmt
-make vet
-
-# Clean build artifacts
-make clean
-
-# Install to system (requires sudo)
-make install-bin
-
-# Show all available targets
-make help
-```
-
-### Using Build Scripts
-
-#### All Platforms (scripts/build-all.sh)
-
-Build for all supported platforms (macOS, Linux):
-
-```bash
-./scripts/build-all.sh
-```
-
-This will create binaries in the `dist/` directory:
-- `dist/cp-discovery_darwin_amd64/cp-discovery` - macOS Intel
-- `dist/cp-discovery_darwin_arm64/cp-discovery` - macOS Apple Silicon
-- `dist/cp-discovery_linux_amd64/cp-discovery` - Linux Intel/AMD (requires Docker)
-- `dist/cp-discovery_linux_arm64/cp-discovery` - Linux ARM (requires Docker)
-
-#### Platform-Specific Builds
-
-**macOS and Linux (via Docker):**
-```bash
-./scripts/build.sh
-```
-
-**Linux only (requires Docker):**
-```bash
-./scripts/build-linux.sh
-```
-
-### Using GoReleaser (Production Releases)
-
-For production releases with proper versioning and archives:
-
-```bash
-# Install GoReleaser (if not already installed)
+# Install GoReleaser (macOS)
 brew install goreleaser
 
-# Create a release build
-goreleaser release --snapshot --clean
+# Build for all platforms (no Docker required!)
+goreleaser build --clean --snapshot
 
-# Or with a version tag
-git tag v1.0.0
+# Or create a full release with archives
+goreleaser release --clean --snapshot
+```
+
+**Output** (in `dist/` directory):
+- `cp-discovery-Darwin-x86_64` - macOS Intel
+- `cp-discovery-Darwin-arm64` - macOS Apple Silicon
+- `cp-discovery-Linux-x86_64` - Linux Intel/AMD
+- `cp-discovery-Linux-arm64` - Linux ARM
+
+Plus compressed `.tar.gz` archives and checksums.
+
+### Using Make
+
+For quick local development builds:
+
+```bash
+# Build for your current platform
+make build
+
+# Output: bin/cp-discovery
+
+# Other useful targets
+make test        # Run tests
+make fmt         # Format code
+make clean       # Remove build artifacts
+make help        # Show all targets
+```
+
+### Manual Build
+
+```bash
+# Install dependencies
+go mod download
+
+# Build for current platform
+go build -o cp-discovery ./cmd/cp-discovery
+
+# Build for specific platform
+GOOS=linux GOARCH=amd64 go build -o cp-discovery-linux ./cmd/cp-discovery
+```
+
+### Build for Release
+
+Create a tagged release with GoReleaser:
+
+```bash
+# Tag the release
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+# Build release artifacts
 goreleaser release --clean
 ```
 
-This creates:
-- Cross-platform binaries for macOS (amd64, arm64) and Linux (amd64, arm64)
-- Compressed archives with checksums
-- Release artifacts in `dist/`
+### Why No Docker Required?
 
-### Build Requirements
-
-**For macOS builds:**
-- Go 1.21 or later
-- librdkafka (install via `brew install librdkafka`)
-
-**For Linux builds:**
-- Docker (for cross-compilation)
-- The build scripts handle librdkafka installation automatically
-
-**For Windows builds:**
-- Currently not supported in the build scripts
-- Requires complex MinGW cross-compilation setup
-
-### Binary Location
-
-- `make build` → `bin/cp-discovery`
-- Build scripts → `dist/cp-discovery_<platform>_<arch>/cp-discovery`
-- GoReleaser → `dist/cp-discovery_<version>_<platform>_<arch>/cp-discovery`
+This tool uses **pure Go libraries** (specifically `kafka-go` instead of `confluent-kafka-go`), which means:
+- ✅ No CGO dependencies
+- ✅ No external C libraries (like librdkafka)
+- ✅ True cross-compilation without Docker
+- ✅ Smaller, faster builds
+- ✅ Single static binary
 
 ## Getting Started
 
-### Step 1: Copy the Configuration Template
+### Quick Start (5 Minutes)
+
+**1. Download or Build**
 ```bash
-cp configs/config-template.yaml my-config.yaml
+# Using GoReleaser (recommended)
+goreleaser build --clean --snapshot
+
+# Your binary will be at:
+# dist/cp-discovery-Darwin-arm64 (or Linux-x86_64, etc.)
+
+# Or use Make
+make build
+# Binary at: bin/cp-discovery
 ```
 
-### Step 2: Edit Your Configuration
-Open `my-config.yaml` and fill in at minimum:
+**2. Create Configuration**
+```bash
+# Copy the template
+cp configs/config-template.yaml my-config.yaml
+
+# Edit and add your Kafka broker address (minimum required)
+cat > my-config.yaml << EOF
+clusters:
+  - name: "my-cluster"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+EOF
+```
+
+**3. Run Discovery**
+```bash
+# Using GoReleaser binary
+./dist/cp-discovery-Darwin-arm64 -config my-config.yaml -output data.json
+
+# Or using Make binary
+./bin/cp-discovery -config my-config.yaml -output data.json
+```
+
+**4. View Results**
+
+**Option A: Console** (instant feedback)
+```bash
+./bin/cp-discovery -config my-config.yaml
+# See summary directly in terminal
+```
+
+**Option B: Web Viewer** (interactive dashboard)
+```bash
+# 1. Generate JSON report
+./bin/cp-discovery -config my-config.yaml -output data.json
+
+# 2. Open viewer in browser
+open viewer.html  # macOS
+# or
+xdg-open viewer.html  # Linux
+
+# 3. Load data.json file using the "Choose File" button
+```
+
+**Option C: File Export** (for automation)
+```bash
+# JSON format
+./bin/cp-discovery -output discovery-report.json
+
+# YAML format
+./bin/cp-discovery -format yaml -output discovery-report.yaml
+```
+
+### Step-by-Step Configuration
+
+**Step 1: Choose Your Configuration Level**
+
+Pick the configuration file that matches your needs:
+
+| File | Use Case | Fields Required |
+|------|----------|-----------------|
+| `config-minimal.yaml` | Local development | 2 (name, bootstrap_servers) |
+| `config.yaml` | Simple production | 6 (+ security) |
+| `config-production.yaml` | Multi-environment | 10+ (+ all components) |
+| `config-complete.yaml` | Reference | All available options |
+
+**Step 2: Edit Configuration**
+
+Minimal setup (2 fields):
 ```yaml
 clusters:
   - name: "my-cluster"
     kafka:
-      bootstrap_servers: "your-broker:9092"  # REQUIRED
+      bootstrap_servers: "broker:9092"
 ```
 
-### Step 3: Run Discovery
+With security (6 fields):
+```yaml
+clusters:
+  - name: "prod-cluster"
+    kafka:
+      bootstrap_servers: "broker:9093"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${KAFKA_USER}"      # Use env vars!
+      sasl_password: "${KAFKA_PASSWORD}"
+    shared_auth:
+      username: "${API_USER}"
+      password: "${API_PASSWORD}"
+```
+
+**Step 3: Set Environment Variables** (optional but recommended)
 ```bash
-./bin/cp-discovery -config my-config.yaml -detailed
+export KAFKA_USER="my-user"
+export KAFKA_PASSWORD="my-secret"
+export API_USER="admin"
+export API_PASSWORD="admin-secret"
 ```
 
-### Step 4: View Results
-The tool outputs:
-- **Console**: Summary with key metrics
-- **JSON/YAML**: Detailed report saved to `discovery-report.json`
-- **Web UI** (optional): Run with `-view` flag
-
+**Step 4: Run Discovery**
 ```bash
-# View in browser
-./bin/cp-discovery -config my-config.yaml -view
+./bin/cp-discovery -config my-config.yaml -output data.json
 ```
+
+**Step 5: Explore Results**
+
+See the [Viewing Your Results](#viewing-your-results) section for details on console output, file exports, and the interactive web viewer.
 
 ## Quick Start Configuration
 
@@ -431,43 +528,105 @@ Each component supports:
 
 ## Usage
 
-### Running the Tool
+### Command-Line Flags
 
-After building, the binary will be located at `bin/cp-discovery` (if using make) or in the `dist/` directory (if using build scripts).
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-config` | string | `configs/config.yaml` | Path to configuration file |
+| `-output` | string | (from config) | Output file path |
+| `-format` | string | `json` | Output format: `json` or `yaml` |
+| `-detailed` | bool | false | Enable detailed discovery mode |
 
-#### Basic Usage
+### Basic Usage
 
 ```bash
-# If built with make
+# Run with default config
 ./bin/cp-discovery
 
-# If built with build scripts
-./dist/cp-discovery_darwin_arm64/cp-discovery  # adjust path for your platform
-```
-
-#### With Custom Configuration
-
-```bash
+# Use custom config file
 ./bin/cp-discovery -config /path/to/config.yaml
-```
 
-#### Common Options
-
-```bash
-# Run with detailed output
-./bin/cp-discovery -detailed
+# Save to specific file
+./bin/cp-discovery -output /tmp/my-report.json
 
 # Change output format to YAML
 ./bin/cp-discovery -format yaml -output report.yaml
 
-# Run and view results in browser
-./bin/cp-discovery -view
+# Enable detailed mode
+./bin/cp-discovery -detailed
 
-# Specify custom output file
-./bin/cp-discovery -output /tmp/my-report.json
+# Combine options
+./bin/cp-discovery \
+  -config configs/production.yaml \
+  -output reports/$(date +%Y%m%d)-discovery.json \
+  -format json \
+  -detailed
 ```
 
-For all available command-line options, see [Command-Line Arguments](#command-line-arguments-new) below.
+### Common Usage Patterns
+
+**1. Quick Local Check:**
+```bash
+./bin/cp-discovery
+# Uses default config (configs/config.yaml)
+# Outputs to console
+```
+
+**2. Production Scan with Report:**
+```bash
+./bin/cp-discovery \
+  -config configs/production.yaml \
+  -output reports/prod-$(date +%Y%m%d).json
+```
+
+**3. Multi-Cluster Discovery:**
+```bash
+# Your config.yaml has multiple clusters
+./bin/cp-discovery -config multi-cluster.yaml -output all-clusters.json
+```
+
+**4. YAML Output for GitOps:**
+```bash
+./bin/cp-discovery \
+  -format yaml \
+  -output kafka-state.yaml
+# Commit to Git for change tracking
+```
+
+**5. Automated Monitoring:**
+```bash
+#!/bin/bash
+# Run discovery every hour and save with timestamp
+while true; do
+  ./bin/cp-discovery \
+    -config production.yaml \
+    -output "reports/$(date +%Y%m%d-%H%M).json"
+  sleep 3600
+done
+```
+
+**6. View in Browser:**
+```bash
+# Generate report
+./bin/cp-discovery -output data.json
+
+# Open viewer
+open viewer.html
+
+# Load data.json in the browser UI
+```
+
+**7. Compare Environments:**
+```bash
+# Discover dev
+./bin/cp-discovery -config dev.yaml -output dev.json
+
+# Discover prod
+./bin/cp-discovery -config prod.yaml -output prod.json
+
+# Compare (using jq or diff tools)
+diff <(jq -S . dev.json) <(jq -S . prod.json)
+```
 
 ## Output
 
@@ -844,72 +1003,121 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 This tool is provided as-is for Confluent Platform discovery and monitoring purposes.
 
-## Command-Line Arguments (New!)
+## Viewing Your Results
 
-The tool now supports flexible command-line arguments that override configuration file settings:
+### Real-Time Progress
 
-### Available Flags
+Watch discovery progress in real-time with an interactive progress bar:
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `-config` | string | `configs/config.yaml` | Path to configuration file |
-| `-output` | string | (from config) | Output file path (overrides config) |
-| `-format` | string | (from config) | Output format: `json` or `yaml` |
-| `-detailed` | bool | false | Enable detailed discovery mode |
-| `-view` | bool | false | Open report in web browser after discovery |
-| `-view-file` | string | "" | View existing report file in browser (skip discovery) |
-| `-port` | int | 8080 | Port for web view server (used with -view) |
+```
+🔍 Starting discovery for 2 cluster(s)...
 
-### Usage Examples
-
-```bash
-# Use custom output file
-./bin/cp-discovery -output /tmp/my-report.json
-
-# Change output format
-./bin/cp-discovery -format yaml -output report.yaml
-
-# Enable detailed mode
-./bin/cp-discovery -detailed
-
-# Combine all options
-./bin/cp-discovery \
-  -config configs/config-production.yaml \
-  -output /var/reports/kafka-$(date +%Y%m%d).json \
-  -format json \
-  -detailed
+[1/3] Discovering multi-cluster → Kafka Connect  75% [=================================>      ] (12/16)
 ```
 
-For more examples, see [USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md)
+The progress bar shows:
+- **Stage indicator** (1/3, 2/3, 3/3): Discovery → Report → Summary
+- **Current cluster** being scanned (color-coded in yellow)
+- **Component** being discovered (Kafka, Schema Registry, Connect, ksqlDB, etc.)
+- **Progress percentage** and completion count
+- **Visual progress bar** with green indicators
 
-## Web Viewer (New!)
+### Console Output
 
-View discovery reports in your browser with a modern, interactive HTML interface:
+After discovery completes, view a comprehensive summary in your terminal:
 
-```bash
-# View an existing report
-./bin/cp-discovery -view-file test-report.json
+```
+================================================================================
+CONFLUENT PLATFORM DISCOVERY SUMMARY
+================================================================================
+Timestamp: 2026-03-05T12:41:46-06:00
+Total Clusters: 2
 
-# Run discovery and view results (uses temporary file, auto-cleanup)
-./bin/cp-discovery -view
+--------------------------------------------------------------------------------
+NODE COUNT SUMMARY (Across All Clusters)
+--------------------------------------------------------------------------------
+  Kafka Brokers:           4
+  KRaft Controllers:       4
+  Schema Registry Nodes:   2
+  Kafka Connect Workers:   2
+  ksqlDB Nodes:            2
+  REST Proxy Instances:    2
+  Control Center Instances: 1
 
-# Run discovery and save report for later
-./bin/cp-discovery -view -output my-report.json
-
-# Use custom port
-./bin/cp-discovery -view-file report.json -port 8888
+Cluster: multi-cluster [healthy]
+--------------------------------------------------------------------------------
+  Kafka:
+    Brokers: 3
+    Controller: kraft (Controllers: 3)
+    Topics: 16 (Internal: 10, External: 6)
+    Total Partitions: 246
+    Storage:
+      Total Cluster Storage: 24.50 GB
+...
 ```
 
-**Features:**
-- 🎨 Modern gradient UI with responsive design
-- 📊 Tabbed interface (Overview, Clusters, Raw JSON)
-- 📈 Summary cards with key metrics
-- 🎯 Component cards for each Confluent Platform service
-- 🚦 Color-coded status badges
-- 🌐 No external dependencies - fully self-contained
-- 🗑️ **Auto-cleanup** - When using `-view` without `-output`, creates temporary file and cleans up on exit
+### JSON/YAML Files
 
-For complete documentation, see [WEB_VIEWER.md](docs/WEB_VIEWER.md)
+Export detailed reports for automation and archival:
+
+```bash
+# JSON format (default)
+./bin/cp-discovery -output discovery-report.json
+
+# YAML format
+./bin/cp-discovery -format yaml -output discovery-report.yaml
+```
+
+### Interactive Web Viewer
+
+View reports in a beautiful, interactive dashboard:
+
+1. **Generate Report**:
+   ```bash
+   ./bin/cp-discovery -output data.json
+   ```
+
+2. **Open Viewer**:
+   ```bash
+   # macOS
+   open viewer.html
+
+   # Linux
+   xdg-open viewer.html
+
+   # Windows
+   start viewer.html
+   ```
+
+3. **Load Your Data**:
+   - Click "Choose File" button
+   - Select your `data.json` file
+   - Explore your clusters!
+
+**Viewer Features**:
+- 📊 **Overview Tab**: Summary cards with cluster-wide metrics
+- 🎯 **Kafka Details Tab**: Complete topic and broker information
+- 🔌 **Components Tab**: Connectors, consumer groups, and more
+- 📝 **Raw JSON Tab**: View the complete data structure
+- 🎨 **Modern UI**: Responsive design with color-coded statuses
+- 🚀 **Standalone**: No server required - works offline!
+
+## Viewer Distribution
+
+The `viewer.html` file is automatically included in release archives when using GoReleaser:
+
+```bash
+# Build a release
+goreleaser release --clean --snapshot
+
+# Archives include:
+# ├── cp-discovery-<OS>-<ARCH>
+# ├── viewer.html          ← Interactive web viewer
+# ├── configs/             ← Sample configurations
+# └── README.md
+```
+
+This makes it easy to distribute the tool with its viewer to users who don't have the source code.
 
 ## Enhanced Output (New!)
 

@@ -5,16 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"os/exec"
-	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/schollz/progressbar/v3"
 	configPkg "github.com/rahulkj/cp-discovery/internal/config"
 	"github.com/rahulkj/cp-discovery/internal/discovery"
 	"github.com/rahulkj/cp-discovery/internal/model"
@@ -26,42 +22,11 @@ func main() {
 	outputFile := flag.String("output", "", "Output file path (overrides config file setting)")
 	outputFormat := flag.String("format", "", "Output format: json or yaml (overrides config file setting)")
 	detailed := flag.Bool("detailed", false, "Enable detailed discovery (overrides config file setting)")
-	viewReport := flag.Bool("view", false, "Open report in web browser after discovery")
-	viewPort := flag.Int("port", 8080, "Port for web view server (used with -view)")
-	viewOnly := flag.String("view-file", "", "View existing report file in browser (skip discovery)")
 	flag.Parse()
-
-	// View-only mode: just open existing file in browser
-	if *viewOnly != "" {
-		if err := viewReportFile(*viewOnly, *viewPort); err != nil {
-			log.Fatalf("Failed to view report: %v", err)
-		}
-		return
-	}
 
 	cfg, err := configPkg.LoadConfig(*configFile)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
-	}
-
-	// If -view is specified without -output, create a temporary file
-	useTempFile := false
-	var tempFilePath string
-	if *viewReport && *outputFile == "" && cfg.Output.File == "" {
-		// Create a temporary file for viewing
-		tempFile, err := os.CreateTemp("", "cp-discovery-*.json")
-		if err != nil {
-			log.Fatalf("Failed to create temporary file: %v", err)
-		}
-		tempFilePath = tempFile.Name()
-		tempFile.Close()
-		useTempFile = true
-		cfg.Output.File = tempFilePath
-		// Default to JSON format for temp files
-		if *outputFormat == "" && cfg.Output.Format == "" {
-			cfg.Output.Format = "json"
-		}
-		fmt.Printf("Using temporary report file: %s\n", tempFilePath)
 	}
 
 	// Override config with command-line flags if provided
@@ -77,40 +42,15 @@ func main() {
 
 	report := discoverClusters(cfg)
 
+	fmt.Printf("\n[cyan][2/3][reset] Generating report...\n")
 	if err := outputReport(report, cfg.Output); err != nil {
 		log.Fatalf("Failed to output report: %v", err)
 	}
 
+	fmt.Printf("[cyan][3/3][reset] Displaying summary...\n\n")
 	printSummary(report)
 
-	// Open in browser if requested
-	if *viewReport {
-		reportFile := cfg.Output.File
-		if reportFile == "" {
-			reportFile = "discovery-report.json" // Default
-		}
-
-		// Set up signal handling for cleanup if using temp file
-		if useTempFile {
-			sigChan := make(chan os.Signal, 1)
-			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-			go func() {
-				<-sigChan
-				fmt.Printf("\n\nReceived interrupt signal\n")
-				fmt.Printf("Cleaning up temporary file: %s\n", tempFilePath)
-				os.Remove(tempFilePath)
-				os.Exit(0)
-			}()
-		}
-
-		if err := viewReportFile(reportFile, *viewPort); err != nil {
-			// Clean up temp file if server fails to start
-			if useTempFile {
-				os.Remove(tempFilePath)
-			}
-			log.Fatalf("Failed to view report: %v", err)
-		}
-	}
+	fmt.Printf("\n✅ [green]Discovery completed successfully![reset]\n")
 }
 
 func discoverClusters(cfg *model.Config) *model.DiscoveryReport {
@@ -122,6 +62,51 @@ func discoverClusters(cfg *model.Config) *model.DiscoveryReport {
 
 	detailed := cfg.Output.Detailed
 
+	// Calculate total steps for progress bar
+	// Each cluster has: Kafka (1) + up to 7 optional components
+	totalSteps := 0
+	for _, cluster := range cfg.Clusters {
+		steps := 1 // Kafka is always discovered
+		if configPkg.ShouldDiscoverSchemaRegistry(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverKafkaConnect(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverKsqlDB(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverRestProxy(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverControlCenter(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverPrometheus(&cluster) {
+			steps++
+		}
+		if configPkg.ShouldDiscoverAlertmanager(&cluster) {
+			steps++
+		}
+		totalSteps += steps
+	}
+
+	// Create progress bar
+	bar := progressbar.NewOptions(totalSteps,
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetWidth(50),
+		progressbar.OptionSetDescription("[cyan][1/3][reset] Discovering clusters..."),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "[green]=[reset]",
+			SaucerHead:    "[green]>[reset]",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}))
+
+	fmt.Printf("\n🔍 Starting discovery for %d cluster(s)...\n\n", len(cfg.Clusters))
+
 	var wg sync.WaitGroup
 	clusterReports := make([]model.ClusterReport, len(cfg.Clusters))
 
@@ -129,17 +114,18 @@ func discoverClusters(cfg *model.Config) *model.DiscoveryReport {
 		wg.Add(1)
 		go func(idx int, clusterConfig model.ClusterConfig) {
 			defer wg.Done()
-			clusterReports[idx] = discoverCluster(clusterConfig, detailed)
+			clusterReports[idx] = discoverCluster(clusterConfig, detailed, bar)
 		}(i, cluster)
 	}
 
 	wg.Wait()
 
+	fmt.Println()
 	report.Clusters = clusterReports
 	return report
 }
 
-func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterReport {
+func discoverCluster(config model.ClusterConfig, detailed bool, bar *progressbar.ProgressBar) model.ClusterReport {
 	report := model.ClusterReport{
 		Name:   config.Name,
 		Status: "healthy",
@@ -153,7 +139,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Kafka", config.Name))
 		kafkaReport, err := discovery.DiscoverKafka(config.Kafka, detailed)
+		bar.Add(1)
 		if err != nil {
 			mu.Lock()
 			report.Errors = append(report.Errors, fmt.Sprintf("Kafka: %v", err))
@@ -170,7 +158,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Schema Registry", config.Name))
 			srReport, err := discovery.DiscoverSchemaRegistry(config.SchemaRegistry, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -186,7 +176,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Kafka Connect", config.Name))
 			connectReport, err := discovery.DiscoverKafkaConnect(config.KafkaConnect, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -202,7 +194,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → ksqlDB", config.Name))
 			ksqlReport, err := discovery.DiscoverKsqlDB(config.KsqlDB, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -218,7 +212,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → REST Proxy", config.Name))
 			restReport, err := discovery.DiscoverRestProxy(config.RestProxy, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -234,7 +230,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Control Center", config.Name))
 			ccReport, err := discovery.DiscoverControlCenter(config.ControlCenter, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -250,7 +248,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Prometheus", config.Name))
 			promReport, err := discovery.DiscoverPrometheus(config.Prometheus, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -266,7 +266,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bar.Describe(fmt.Sprintf("[cyan][1/3][reset] Discovering [yellow]%s[reset] → Alertmanager", config.Name))
 			amReport, err := discovery.DiscoverAlertmanager(config.Alertmanager, detailed)
+			bar.Add(1)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -632,526 +634,6 @@ func printSummary(report *model.DiscoveryReport) {
 	}
 
 	fmt.Println(strings.Repeat("=", 80))
-}
-
-// viewReportFile opens the report in a web browser
-func viewReportFile(reportPath string, port int) error {
-	// Read the report file
-	data, err := os.ReadFile(reportPath)
-	if err != nil {
-		return fmt.Errorf("failed to read report file: %w", err)
-	}
-
-	// Parse JSON to check validity
-	var report model.DiscoveryReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		return fmt.Errorf("failed to parse report file: %w", err)
-	}
-
-	// Start HTTP server
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		serveReportHTML(w, r, &report)
-	})
-
-	http.HandleFunc("/api/report", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
-
-	addr := fmt.Sprintf("localhost:%d", port)
-	url := fmt.Sprintf("http://%s", addr)
-
-	fmt.Printf("\n" + strings.Repeat("=", 80) + "\n")
-	fmt.Printf("🌐 Web Report Viewer\n")
-	fmt.Printf(strings.Repeat("=", 80) + "\n")
-	fmt.Printf("Report: %s\n", reportPath)
-	fmt.Printf("Server: %s\n", url)
-	fmt.Printf("Press Ctrl+C to stop the server\n")
-	fmt.Printf(strings.Repeat("=", 80) + "\n\n")
-
-	// Open browser
-	if err := openBrowser(url); err != nil {
-		fmt.Printf("⚠️  Could not open browser automatically: %v\n", err)
-		fmt.Printf("Please open manually: %s\n", url)
-	} else {
-		fmt.Printf("✅ Opening browser...\n\n")
-	}
-
-	// Start server
-	return http.ListenAndServe(addr, nil)
-}
-
-// openBrowser opens the default browser
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start", url}
-	default:
-		return fmt.Errorf("unsupported platform")
-	}
-
-	return exec.Command(cmd, args...).Start()
-}
-
-// serveReportHTML serves the HTML page
-func serveReportHTML(w http.ResponseWriter, r *http.Request, report *model.DiscoveryReport) {
-	html := generateReportHTML(report)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
-}
-
-// generateReportHTML generates the interactive HTML content with drill-down capabilities
-func generateReportHTML(report *model.DiscoveryReport) string {
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confluent Platform Discovery Report</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        .header .subtitle {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        .summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 30px;
-            background: #f8f9fa;
-            border-bottom: 2px solid #e9ecef;
-        }
-        .summary-card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .summary-card .number {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-        .summary-card .label {
-            color: #6c757d;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .clusters {
-            padding: 30px;
-        }
-        .cluster {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 20px;
-            border-left: 5px solid #667eea;
-        }
-        .cluster-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .cluster-name {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #2d3748;
-        }
-        .status-badge {
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .status-healthy {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-partial {
-            background: #fff3cd;
-            color: #856404;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .components {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-        .component {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .component-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .component-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            margin-right: 12px;
-        }
-        .component-title {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #2d3748;
-        }
-        .component-detail {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-        .component-detail:last-child {
-            border-bottom: none;
-        }
-        .detail-label {
-            color: #6c757d;
-            font-size: 0.9em;
-        }
-        .detail-value {
-            font-weight: 600;
-            color: #2d3748;
-        }
-        .available-yes {
-            color: #28a745;
-        }
-        .available-no {
-            color: #dc3545;
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            padding: 20px 30px 0 30px;
-            border-bottom: 2px solid #e9ecef;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            border-radius: 8px 8px 0 0;
-            transition: all 0.3s;
-        }
-        .tab:hover {
-            background: #f8f9fa;
-        }
-        .tab.active {
-            background: #667eea;
-            color: white;
-            font-weight: bold;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .json-viewer {
-            background: #2d3748;
-            color: #e2e8f0;
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 20px;
-        }
-        .json-viewer pre {
-            margin: 0;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-            line-height: 1.5;
-        }
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #6c757d;
-            font-size: 0.9em;
-            border-top: 2px solid #e9ecef;
-        }
-        .metric-good {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .metric-warning {
-            color: #ffc107;
-            font-weight: bold;
-        }
-        .metric-error {
-            color: #dc3545;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Confluent Platform Discovery</h1>
-            <div class="subtitle" id="timestamp"></div>
-        </div>
-
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('overview')">Overview</div>
-            <div class="tab" onclick="switchTab('clusters')">Clusters</div>
-            <div class="tab" onclick="switchTab('json')">Raw JSON</div>
-        </div>
-
-        <div id="overview-content" class="tab-content active">
-            <div class="summary" id="summary"></div>
-        </div>
-
-        <div id="clusters-content" class="tab-content">
-            <div class="clusters" id="clusters"></div>
-        </div>
-
-        <div id="json-content" class="tab-content">
-            <div class="json-viewer">
-                <pre id="json-data"></pre>
-            </div>
-        </div>
-
-        <div class="footer">
-            Generated by Confluent Discovery Tool v2.0.0
-        </div>
-    </div>
-
-    <script>
-        let reportData = null;
-
-        fetch('/api/report')
-            .then(response => response.json())
-            .then(data => {
-                reportData = data;
-                renderReport(data);
-            })
-            .catch(error => {
-                console.error('Error loading report:', error);
-            });
-
-        function renderReport(data) {
-            document.getElementById('timestamp').textContent = 'Generated: ' + new Date(data.timestamp).toLocaleString();
-            renderSummary(data);
-            renderClusters(data);
-            document.getElementById('json-data').textContent = JSON.stringify(data, null, 2);
-        }
-
-        function renderSummary(data) {
-            var summary = document.getElementById('summary');
-            var totalClusters = data.total_clusters || 0;
-            var healthyClusters = data.clusters.filter(function(c) { return c.status === 'healthy'; }).length;
-            var totalBrokers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.broker_count || 0); }, 0);
-            var totalTopics = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.topic_count || 0); }, 0);
-            var totalControllers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka && c.kafka.controller_count || 0); }, 0);
-            var totalSRNodes = data.clusters.reduce(function(sum, c) { return sum + (c.schema_registry && c.schema_registry.node_count || 0); }, 0);
-            var totalConnectWorkers = data.clusters.reduce(function(sum, c) { return sum + (c.kafka_connect && c.kafka_connect.worker_count || 0); }, 0);
-            var totalKsqlDBNodes = data.clusters.reduce(function(sum, c) { return sum + (c.ksqldb && c.ksqldb.node_count || 0); }, 0);
-            var totalRestProxyInstances = data.clusters.filter(function(c) { return c.rest_proxy && c.rest_proxy.available; }).length;
-            var totalControlCenterInstances = data.clusters.filter(function(c) { return c.control_center && c.control_center.available; }).length;
-
-            summary.innerHTML = '<div class="summary-card"><div class="number">' + totalClusters + '</div><div class="label">Total Clusters</div></div>' +
-                '<div class="summary-card"><div class="number">' + healthyClusters + '</div><div class="label">Healthy Clusters</div></div>' +
-                '<div class="summary-card"><div class="number">' + totalBrokers + '</div><div class="label">Kafka Brokers</div></div>' +
-                '<div class="summary-card"><div class="number">' + totalTopics + '</div><div class="label">Total Topics</div></div>' +
-                (totalControllers > 0 ? '<div class="summary-card"><div class="number">' + totalControllers + '</div><div class="label">KRaft Controllers</div></div>' : '') +
-                (totalSRNodes > 0 ? '<div class="summary-card"><div class="number">' + totalSRNodes + '</div><div class="label">Schema Registry Nodes</div></div>' : '') +
-                (totalConnectWorkers > 0 ? '<div class="summary-card"><div class="number">' + totalConnectWorkers + '</div><div class="label">Connect Workers</div></div>' : '') +
-                (totalKsqlDBNodes > 0 ? '<div class="summary-card"><div class="number">' + totalKsqlDBNodes + '</div><div class="label">ksqlDB Nodes</div></div>' : '') +
-                (totalRestProxyInstances > 0 ? '<div class="summary-card"><div class="number">' + totalRestProxyInstances + '</div><div class="label">REST Proxy Instances</div></div>' : '') +
-                (totalControlCenterInstances > 0 ? '<div class="summary-card"><div class="number">' + totalControlCenterInstances + '</div><div class="label">Control Center Instances</div></div>' : '');
-        }
-
-        function renderClusters(data) {
-            var clustersDiv = document.getElementById('clusters');
-            clustersDiv.innerHTML = data.clusters.map(function(cluster) { return renderCluster(cluster); }).join('');
-        }
-
-        function renderCluster(cluster) {
-            var statusClass = 'status-' + cluster.status;
-            var componentsHTML = '';
-
-            if (cluster.kafka && cluster.kafka.available) {
-                var kafkaDetails = {
-                    'Brokers': cluster.kafka.broker_count,
-                    'Controller': cluster.kafka.controller_type,
-                    'Topics': cluster.kafka.topic_count,
-                    'Partitions': cluster.kafka.total_partitions,
-                    'Security': (cluster.kafka.security_config && cluster.kafka.security_config.authentication_method) || 'None'
-                };
-                if (cluster.kafka.controller_count > 0) {
-                    kafkaDetails['Controller Nodes'] = cluster.kafka.controller_count;
-                }
-                if (cluster.kafka.cluster_metrics && cluster.kafka.cluster_metrics.total_disk_usage_bytes > 0) {
-                    kafkaDetails['Storage'] = formatBytes(cluster.kafka.cluster_metrics.total_disk_usage_bytes);
-                }
-                componentsHTML += renderComponent('Kafka', 'K', kafkaDetails);
-            }
-
-            if (cluster.schema_registry && cluster.schema_registry.available) {
-                var srDetails = {
-                    'Version': cluster.schema_registry.version,
-                    'Mode': cluster.schema_registry.mode,
-                    'Schemas': cluster.schema_registry.total_schemas
-                };
-                if (cluster.schema_registry.node_count > 0) {
-                    srDetails['Nodes'] = cluster.schema_registry.node_count;
-                }
-                componentsHTML += renderComponent('Schema Registry', 'SR', srDetails);
-            }
-
-            if (cluster.kafka_connect && cluster.kafka_connect.available) {
-                var connectDetails = {
-                    'Version': cluster.kafka_connect.version,
-                    'Connectors': cluster.kafka_connect.total_connectors,
-                    'Source': cluster.kafka_connect.source_connectors,
-                    'Sink': cluster.kafka_connect.sink_connectors
-                };
-                if (cluster.kafka_connect.worker_count > 0) {
-                    connectDetails['Workers'] = cluster.kafka_connect.worker_count;
-                }
-                componentsHTML += renderComponent('Kafka Connect', 'KC', connectDetails);
-            }
-
-            if (cluster.ksqldb && cluster.ksqldb.available) {
-                var ksqlDetails = {
-                    'Version': cluster.ksqldb.version,
-                    'Queries': cluster.ksqldb.queries,
-                    'Streams': cluster.ksqldb.streams,
-                    'Tables': cluster.ksqldb.tables
-                };
-                if (cluster.ksqldb.node_count > 0) {
-                    ksqlDetails['Nodes'] = cluster.ksqldb.node_count;
-                }
-                componentsHTML += renderComponent('ksqlDB', 'KS', ksqlDetails);
-            }
-
-            if (cluster.rest_proxy && cluster.rest_proxy.available) {
-                componentsHTML += renderComponent('REST Proxy', 'RP', {
-                    'Version': cluster.rest_proxy.version,
-                    'Cluster ID': cluster.rest_proxy.cluster_id,
-                    'Controller Mode': cluster.rest_proxy.controller_mode
-                });
-            }
-
-            if (cluster.control_center && cluster.control_center.available) {
-                componentsHTML += renderComponent('Control Center', 'C3', {
-                    'Version': cluster.control_center.version,
-                    'URL': cluster.control_center.url,
-                    'Monitored Clusters': cluster.control_center.monitored_clusters
-                });
-            }
-
-            if (cluster.prometheus && cluster.prometheus.available) {
-                componentsHTML += renderComponent('Prometheus', 'PM', {
-                    'Version': cluster.prometheus.version,
-                    'URL': cluster.prometheus.url,
-                    'Targets Up': cluster.prometheus.targets_up,
-                    'Targets Down': cluster.prometheus.targets_down
-                });
-            }
-
-            if (cluster.alertmanager && cluster.alertmanager.available) {
-                componentsHTML += renderComponent('Alertmanager', 'AM', {
-                    'Version': cluster.alertmanager.version,
-                    'Cluster Size': cluster.alertmanager.cluster_size,
-                    'Active Alerts': cluster.alertmanager.active_alerts
-                });
-            }
-
-            return '<div class="cluster"><div class="cluster-header">' +
-                '<div class="cluster-name">' + cluster.name + '</div>' +
-                '<div class="status-badge ' + statusClass + '">' + cluster.status + '</div>' +
-                '</div><div class="components">' + componentsHTML + '</div></div>';
-        }
-
-        function renderComponent(title, icon, details) {
-            var detailsHTML = Object.keys(details).map(function(key) {
-                return '<div class="component-detail">' +
-                    '<span class="detail-label">' + key + ':</span>' +
-                    '<span class="detail-value">' + details[key] + '</span>' +
-                    '</div>';
-            }).join('');
-
-            return '<div class="component"><div class="component-header">' +
-                '<div class="component-icon">' + icon + '</div>' +
-                '<div class="component-title">' + title + '</div>' +
-                '</div>' + detailsHTML + '</div>';
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(function(content) {
-                content.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(function(tab) {
-                tab.classList.remove('active');
-            });
-            document.getElementById(tabName + '-content').classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        function formatBytes(bytes) {
-            if (!bytes || bytes === 0) return '0 B';
-            var k = 1024;
-            var sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-            var i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-    </script>
-</body>
-</html>`
 }
 
 // enrichTopicsWithSchemas maps Schema Registry subjects to Kafka topics
