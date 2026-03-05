@@ -96,22 +96,34 @@ func DiscoverKafka(config model.KafkaConfig, detailed bool) (model.KafkaReport, 
 				partitionCount := len(topic.Partitions)
 				report.TotalPartitions += partitionCount
 
-				if detailed {
-					topicInfo := model.TopicInfo{
-						Name:              topicName,
-						IsInternal:        isInternalTopic(topicName),
-						Partitions:        partitionCount,
-						ReplicationFactor: getReplicationFactor(topic),
-					}
-
-					// Get topic configuration for retention settings
-					if configs, err := getTopicConfigs(adminClient, ctx, topicName); err == nil {
-						topicInfo.RetentionMs = configs.RetentionMs
-						topicInfo.RetentionBytes = configs.RetentionBytes
-					}
-
-					report.Topics = append(report.Topics, topicInfo)
+				// Always collect topic information (basic details)
+				topicInfo := model.TopicInfo{
+					Name:              topicName,
+					IsInternal:        isInternalTopic(topicName),
+					Partitions:        partitionCount,
+					ReplicationFactor: getReplicationFactor(topic),
+					AssociatedSchemas: make([]string, 0),
 				}
+
+				// Get topic configuration for retention settings
+				if configs, err := getTopicConfigs(adminClient, ctx, topicName); err == nil {
+					topicInfo.RetentionMs = configs.RetentionMs
+					topicInfo.RetentionBytes = configs.RetentionBytes
+				}
+
+				// Calculate topic storage size by querying partition offsets
+				// This is done for all topics to show cluster storage
+				topicSize, err := calculateTopicSize(config, topicName, partitionCount)
+				if err == nil {
+					topicInfo.SizeBytes = topicSize
+				}
+
+				// Throughput will be populated from metrics if available
+				// For now, these are placeholders that can be enriched from Prometheus/JMX
+				topicInfo.ThroughputBytesInPerSec = 0
+				topicInfo.ThroughputBytesOutPerSec = 0
+
+				report.Topics = append(report.Topics, topicInfo)
 			}
 		}
 	}
@@ -268,6 +280,13 @@ func calculateClusterMetrics(report model.KafkaReport) model.ClusterMetrics {
 		UnderReplicatedPartitions: 0,
 	}
 
+	// Calculate total cluster storage from topic sizes
+	var totalTopicStorage int64 = 0
+	for _, topic := range report.Topics {
+		totalTopicStorage += topic.SizeBytes
+	}
+	metrics.TotalDiskUsageBytes = totalTopicStorage
+
 	// In a real implementation, these would be fetched from:
 	// 1. JMX metrics (kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec)
 	// 2. Metrics Reporter API
@@ -281,6 +300,55 @@ func calculateClusterMetrics(report model.KafkaReport) model.ClusterMetrics {
 	metrics.MessagesInPerSec = 0
 
 	return metrics
+}
+
+// calculateTopicSize estimates topic storage size by querying partition high watermarks
+func calculateTopicSize(config model.KafkaConfig, topicName string, partitionCount int) (int64, error) {
+	// Create consumer configuration
+	consumerConfig := kafka.ConfigMap{
+		"bootstrap.servers": config.BootstrapServers,
+		"group.id":          "cp-discovery-size-calculator",
+		"auto.offset.reset": "earliest",
+	}
+
+	// Add security configuration
+	if config.SecurityProtocol != "" && config.SecurityProtocol != "PLAINTEXT" {
+		consumerConfig["security.protocol"] = config.SecurityProtocol
+	}
+	if config.SaslMechanism != "" {
+		consumerConfig["sasl.mechanism"] = config.SaslMechanism
+		consumerConfig["sasl.username"] = config.SaslUsername
+		consumerConfig["sasl.password"] = config.SaslPassword
+	}
+
+	// Create consumer
+	consumer, err := kafka.NewConsumer(&consumerConfig)
+	if err != nil {
+		return 0, fmt.Errorf("creating consumer: %w", err)
+	}
+	defer consumer.Close()
+
+	var totalSize int64 = 0
+
+	// Query each partition's watermarks
+	for partition := 0; partition < partitionCount; partition++ {
+		// Get low and high watermarks
+		low, high, err := consumer.QueryWatermarkOffsets(topicName, int32(partition), 5000)
+		if err != nil {
+			// If we can't query, skip this partition
+			continue
+		}
+
+		// Calculate approximate size based on offset range
+		// This is an estimate: actual size depends on message sizes
+		// Average message size assumption: 1KB (can be refined based on actual data)
+		offsetRange := high - low
+		estimatedSize := offsetRange * 1024 // 1KB per message estimate
+
+		totalSize += estimatedSize
+	}
+
+	return totalSize, nil
 }
 
 // Helper function to determine if a topic is internal

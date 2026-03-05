@@ -147,6 +147,7 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 	}
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	// Discover Kafka (always required)
 	wg.Add(1)
@@ -154,9 +155,13 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		defer wg.Done()
 		kafkaReport, err := discovery.DiscoverKafka(config.Kafka, detailed)
 		if err != nil {
+			mu.Lock()
 			report.Errors = append(report.Errors, fmt.Sprintf("Kafka: %v", err))
+			mu.Unlock()
 		} else {
+			mu.Lock()
 			report.Kafka = kafkaReport
+			mu.Unlock()
 		}
 	}()
 
@@ -166,6 +171,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			srReport, err := discovery.DiscoverSchemaRegistry(config.SchemaRegistry, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("Schema Registry: %v", err))
 			} else {
@@ -180,6 +187,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			connectReport, err := discovery.DiscoverKafkaConnect(config.KafkaConnect, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("Kafka Connect: %v", err))
 			} else {
@@ -194,6 +203,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			ksqlReport, err := discovery.DiscoverKsqlDB(config.KsqlDB, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("ksqlDB: %v", err))
 			} else {
@@ -208,6 +219,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			restReport, err := discovery.DiscoverRestProxy(config.RestProxy, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("REST Proxy: %v", err))
 			} else {
@@ -222,6 +235,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			ccReport, err := discovery.DiscoverControlCenter(config.ControlCenter, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("Control Center: %v", err))
 			} else {
@@ -236,6 +251,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			promReport, err := discovery.DiscoverPrometheus(config.Prometheus, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("Prometheus: %v", err))
 			} else {
@@ -250,6 +267,8 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 		go func() {
 			defer wg.Done()
 			amReport, err := discovery.DiscoverAlertmanager(config.Alertmanager, detailed)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("Alertmanager: %v", err))
 			} else {
@@ -259,6 +278,11 @@ func discoverCluster(config model.ClusterConfig, detailed bool) model.ClusterRep
 	}
 
 	wg.Wait()
+
+	// Enrich topics with associated schemas (if Schema Registry is available)
+	if report.SchemaRegistry.Available && len(report.SchemaRegistry.Subjects) > 0 && len(report.Kafka.Topics) > 0 {
+		enrichTopicsWithSchemas(&report)
+	}
 
 	if len(report.Errors) > 0 {
 		report.Status = "partial"
@@ -345,23 +369,34 @@ func printSummary(report *model.DiscoveryReport) {
 				}
 			}
 
-			// Storage
-			if metrics.TotalDiskUsageBytes > 0 {
-				fmt.Printf("    Storage:\n")
-				fmt.Printf("      Total Disk Usage: %.2f GB\n", float64(metrics.TotalDiskUsageBytes)/1024/1024/1024)
-			}
-
-			// Broker-level details (if available in detailed mode)
+			// Storage - always show if we have topic data
+			totalBrokerStorage := int64(0)
 			if len(cluster.Kafka.Brokers) > 0 {
-				totalBrokerStorage := int64(0)
 				for _, broker := range cluster.Kafka.Brokers {
 					if broker.DiskUsageBytes > 0 {
 						totalBrokerStorage += broker.DiskUsageBytes
 					}
 				}
-				if totalBrokerStorage > 0 && metrics.TotalDiskUsageBytes == 0 {
-					fmt.Printf("    Storage:\n")
-					fmt.Printf("      Total Disk Usage: %.2f GB (from brokers)\n", float64(totalBrokerStorage)/1024/1024/1024)
+			}
+
+			// Display storage if we have data from either metrics or brokers
+			if metrics.TotalDiskUsageBytes > 0 || totalBrokerStorage > 0 {
+				fmt.Printf("    Storage:\n")
+				if metrics.TotalDiskUsageBytes > 0 {
+					fmt.Printf("      Total Cluster Storage: %.2f GB\n", float64(metrics.TotalDiskUsageBytes)/1024/1024/1024)
+				} else if totalBrokerStorage > 0 {
+					fmt.Printf("      Total Cluster Storage: %.2f GB (from brokers)\n", float64(totalBrokerStorage)/1024/1024/1024)
+				}
+
+				// Show topic count with storage
+				topicsWithStorage := 0
+				for _, topic := range cluster.Kafka.Topics {
+					if topic.SizeBytes > 0 {
+						topicsWithStorage++
+					}
+				}
+				if topicsWithStorage > 0 {
+					fmt.Printf("      Topics with Storage Data: %d\n", topicsWithStorage)
 				}
 			}
 
@@ -369,6 +404,27 @@ func printSummary(report *model.DiscoveryReport) {
 			if metrics.UnderReplicatedPartitions > 0 {
 				fmt.Printf("    Health:\n")
 				fmt.Printf("      Under-Replicated Partitions: %d\n", metrics.UnderReplicatedPartitions)
+			}
+
+			// Topic details (if detailed mode)
+			if len(cluster.Kafka.Topics) > 0 {
+				fmt.Printf("\n    Topics:\n")
+				for _, topic := range cluster.Kafka.Topics {
+					if !topic.IsInternal {
+						fmt.Printf("      • %s\n", topic.Name)
+						fmt.Printf("        Partitions: %d | Replication: %d", topic.Partitions, topic.ReplicationFactor)
+						if topic.RetentionMs > 0 {
+							fmt.Printf(" | Retention: %s", formatRetention(topic.RetentionMs))
+						}
+						if topic.SizeBytes > 0 {
+							fmt.Printf(" | Size: %.2f MB", float64(topic.SizeBytes)/1024/1024)
+						}
+						fmt.Println()
+						if len(topic.AssociatedSchemas) > 0 {
+							fmt.Printf("        Schemas: %s\n", strings.Join(topic.AssociatedSchemas, ", "))
+						}
+					}
+				}
 			}
 		}
 
@@ -992,4 +1048,41 @@ func generateReportHTML(report *model.DiscoveryReport) string {
     </script>
 </body>
 </html>`
+}
+
+// enrichTopicsWithSchemas maps Schema Registry subjects to Kafka topics
+func enrichTopicsWithSchemas(report *model.ClusterReport) {
+	// Create a map of topic names for quick lookup
+	topicMap := make(map[string]*model.TopicInfo)
+	for i := range report.Kafka.Topics {
+		topicMap[report.Kafka.Topics[i].Name] = &report.Kafka.Topics[i]
+	}
+
+	// Match subjects to topics
+	// Schema naming conventions:
+	// - <topic-name>-key
+	// - <topic-name>-value
+	// - <topic-name>
+	for _, subject := range report.SchemaRegistry.Subjects {
+		// Try to extract topic name from subject
+		topicName := extractTopicFromSubject(subject)
+
+		if topic, exists := topicMap[topicName]; exists {
+			// Add schema to topic's associated schemas
+			topic.AssociatedSchemas = append(topic.AssociatedSchemas, subject)
+		}
+	}
+}
+
+// extractTopicFromSubject extracts the topic name from a schema subject
+func extractTopicFromSubject(subject string) string {
+	// Common patterns:
+	// - topic-name-key -> topic-name
+	// - topic-name-value -> topic-name
+	// - topic-name -> topic-name
+
+	subject = strings.TrimSuffix(subject, "-key")
+	subject = strings.TrimSuffix(subject, "-value")
+
+	return subject
 }

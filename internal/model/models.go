@@ -173,12 +173,16 @@ type SecurityConfig struct {
 
 // TopicInfo represents information about a Kafka topic
 type TopicInfo struct {
-	Name              string `json:"name"`
-	Partitions        int    `json:"partitions"`
-	ReplicationFactor int    `json:"replication_factor"`
-	RetentionMs       int64  `json:"retention_ms,omitempty"`
-	RetentionBytes    int64  `json:"retention_bytes,omitempty"`
-	IsInternal        bool   `json:"is_internal"`
+	Name                    string   `json:"name"`
+	Partitions              int      `json:"partitions"`
+	ReplicationFactor       int      `json:"replication_factor"`
+	RetentionMs             int64    `json:"retention_ms,omitempty"`
+	RetentionBytes          int64    `json:"retention_bytes,omitempty"`
+	SizeBytes               int64    `json:"size_bytes,omitempty"`
+	ThroughputBytesInPerSec float64  `json:"throughput_bytes_in_per_sec,omitempty"`
+	ThroughputBytesOutPerSec float64 `json:"throughput_bytes_out_per_sec,omitempty"`
+	AssociatedSchemas       []string `json:"associated_schemas,omitempty"`
+	IsInternal              bool     `json:"is_internal"`
 }
 
 // BrokerInfo represents information about a Kafka broker
@@ -222,10 +226,12 @@ type KafkaConnectReport struct {
 
 // ConnectorInfo represents information about a Kafka Connect connector
 type ConnectorInfo struct {
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	State string `json:"state"`
-	Tasks int    `json:"tasks"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	State          string `json:"state"`
+	Tasks          int    `json:"tasks"`
+	ConnectorClass string `json:"connector_class,omitempty"`
+	Quickstart     string `json:"quickstart,omitempty"`
 }
 
 // KsqlDBReport represents ksqlDB discovery results

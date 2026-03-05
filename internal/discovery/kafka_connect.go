@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 	"github.com/rahulkj/cp-discovery/internal/model"
 	httpauth "github.com/rahulkj/cp-discovery/internal/http"
@@ -16,27 +15,46 @@ type ConnectInfo struct {
 	Commit  string `json:"commit"`
 }
 
-type ConnectorStatus struct {
-	Name      string                 `json:"name"`
-	Connector map[string]interface{} `json:"connector"`
-	Tasks     []map[string]interface{} `json:"tasks"`
+// ConnectorExpandedStatus represents the response from /connectors?expand=status
+type ConnectorExpandedStatus struct {
+	Status ConnectorStatusDetail `json:"status"`
 }
 
-type ConnectorConfig struct {
-	ConnectorClass string `json:"connector.class"`
-	TasksMax       string `json:"tasks.max"`
+type ConnectorStatusDetail struct {
+	Name      string             `json:"name"`
+	Connector ConnectorStateInfo `json:"connector"`
+	Tasks     []TaskStatusInfo   `json:"tasks"`
+	Type      string             `json:"type"` // "source" or "sink"
 }
 
-type ConnectClusterInfo struct {
-	Version     string `json:"version"`
-	Commit      string `json:"commit"`
-	KafkaClusterID string `json:"kafka_cluster_id"`
-}
-
-type ConnectWorkerInfo struct {
+type ConnectorStateInfo struct {
+	State    string `json:"state"`
 	WorkerID string `json:"worker_id"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
+	Version  string `json:"version"`
+}
+
+type TaskStatusInfo struct {
+	ID       int    `json:"id"`
+	State    string `json:"state"`
+	WorkerID string `json:"worker_id"`
+	Version  string `json:"version"`
+}
+
+// ConnectorExpandedInfo represents the response from /connectors?expand=info
+type ConnectorExpandedInfo struct {
+	Info ConnectorInfoDetail `json:"info"`
+}
+
+type ConnectorInfoDetail struct {
+	Name   string                 `json:"name"`
+	Config map[string]interface{} `json:"config"`
+	Tasks  []TaskInfo             `json:"tasks"`
+	Type   string                 `json:"type"` // "source" or "sink"
+}
+
+type TaskInfo struct {
+	Connector string `json:"connector"`
+	Task      int    `json:"task"`
 }
 
 func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model.KafkaConnectReport, error) {
@@ -87,9 +105,9 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 	workerCount := getConnectWorkerCount(client, config)
 	report.WorkerCount = workerCount
 
-	// Get connectors list
-	connectorsURL := fmt.Sprintf("%s/connectors", config.URL)
-	req, err = http.NewRequest("GET", connectorsURL, nil)
+	// First call: Get connectors with status information
+	statusURL := fmt.Sprintf("%s/connectors?expand=status", config.URL)
+	req, err = http.NewRequest("GET", statusURL, nil)
 	if err != nil {
 		return report, nil
 	}
@@ -106,137 +124,85 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 		return report, nil
 	}
 
-	var connectorNames []string
+	var connectorsStatus map[string]ConnectorExpandedStatus
 	body, _ = io.ReadAll(resp.Body)
-	if json.Unmarshal(body, &connectorNames) != nil {
+	if json.Unmarshal(body, &connectorsStatus) != nil {
 		return report, nil
 	}
 
-	report.TotalConnectors = len(connectorNames)
+	// Second call: Get connectors with info/config information
+	infoURL := fmt.Sprintf("%s/connectors?expand=info", config.URL)
+	req, err = http.NewRequest("GET", infoURL, nil)
+	if err != nil {
+		return report, nil
+	}
 
-	// Get detailed information for each connector
-	for _, name := range connectorNames {
-		connectorInfo, err := getConnectorInfo(client, config, name)
-		if err != nil {
-			continue
-		}
+	httpauth.ApplyKafkaConnectAuth(req, config)
 
-		// Determine connector type
-		connectorType := determineConnectorType(connectorInfo)
+	resp, err = client.Do(req)
+	if err != nil {
+		return report, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return report, nil
+	}
+
+	var connectorsInfo map[string]ConnectorExpandedInfo
+	body, _ = io.ReadAll(resp.Body)
+	if json.Unmarshal(body, &connectorsInfo) != nil {
+		return report, nil
+	}
+
+	report.TotalConnectors = len(connectorsStatus)
+
+	// Process each connector by merging status and info data
+	for connectorName, statusData := range connectorsStatus {
+		// Get connector type from status
+		connectorType := statusData.Status.Type
+
 		if connectorType == "source" {
 			report.SourceConnectors++
 		} else if connectorType == "sink" {
 			report.SinkConnectors++
 		}
 
-		if detailed {
-			// Get connector status
-			status, _ := getConnectorStatus(client, config, name)
-
-			info := model.ConnectorInfo{
-				Name:  name,
-				Type:  connectorType,
-				State: status,
-				Tasks: getTaskCount(connectorInfo),
-			}
-			report.Connectors = append(report.Connectors, info)
+		// Get connector state
+		state := "unknown"
+		if statusData.Status.Connector.State != "" {
+			state = statusData.Status.Connector.State
 		}
+
+		// Get task count from the tasks array
+		taskCount := len(statusData.Status.Tasks)
+
+		// Extract connector.class and quickstart from info data (if available)
+		connectorClass := ""
+		quickstart := ""
+		if infoData, ok := connectorsInfo[connectorName]; ok {
+			if class, ok := infoData.Info.Config["connector.class"].(string); ok {
+				connectorClass = class
+			}
+			if qs, ok := infoData.Info.Config["quickstart"].(string); ok {
+				quickstart = qs
+			}
+		}
+
+		// Always include connector info (name, type, tasks, state, connector.class, quickstart)
+		info := model.ConnectorInfo{
+			Name:           connectorName,
+			Type:           connectorType,
+			State:          state,
+			Tasks:          taskCount,
+			ConnectorClass: connectorClass,
+			Quickstart:     quickstart,
+		}
+
+		report.Connectors = append(report.Connectors, info)
 	}
 
 	return report, nil
-}
-
-func getConnectorInfo(client *http.Client, config model.KafkaConnectConfig, name string) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/connectors/%s/config", config.URL, name)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	httpauth.ApplyKafkaConnectAuth(req, config)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d", resp.StatusCode)
-	}
-
-	var connectorConfig map[string]interface{}
-	body, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(body, &connectorConfig); err != nil {
-		return nil, err
-	}
-
-	return connectorConfig, nil
-}
-
-func getConnectorStatus(client *http.Client, config model.KafkaConnectConfig, name string) (string, error) {
-	url := fmt.Sprintf("%s/connectors/%s/status", config.URL, name)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "unknown", err
-	}
-
-	httpauth.ApplyKafkaConnectAuth(req, config)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "unknown", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "unknown", fmt.Errorf("status: %d", resp.StatusCode)
-	}
-
-	var status ConnectorStatus
-	body, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(body, &status); err != nil {
-		return "unknown", err
-	}
-
-	if state, ok := status.Connector["state"].(string); ok {
-		return state, nil
-	}
-
-	return "unknown", nil
-}
-
-func determineConnectorType(config map[string]interface{}) string {
-	if connectorClass, ok := config["connector.class"].(string); ok {
-		lowerClass := strings.ToLower(connectorClass)
-
-		// Common source connector patterns
-		sourcePatterns := []string{"source", "debezium", "jdbc", "mongodb", "spooldir", "filestream"}
-		for _, pattern := range sourcePatterns {
-			if strings.Contains(lowerClass, pattern) && !strings.Contains(lowerClass, "sink") {
-				return "source"
-			}
-		}
-
-		// Common sink connector patterns
-		sinkPatterns := []string{"sink", "s3", "elasticsearch", "jdbc", "hdfs"}
-		for _, pattern := range sinkPatterns {
-			if strings.Contains(lowerClass, pattern) {
-				return "sink"
-			}
-		}
-	}
-
-	return "unknown"
-}
-
-func getTaskCount(config map[string]interface{}) int {
-	if tasksMax, ok := config["tasks.max"].(string); ok {
-		var count int
-		fmt.Sscanf(tasksMax, "%d", &count)
-		return count
-	}
-	return 1 // Default
 }
 
 func getConnectWorkerCount(client *http.Client, config model.KafkaConnectConfig) int {
