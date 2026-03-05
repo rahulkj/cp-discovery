@@ -254,6 +254,7 @@ type KsqlDBReport struct {
 type RestProxyReport struct {
 	Available             bool                  `json:"available"`
 	Version               string                `json:"version,omitempty"`
+	NodeCount             int                   `json:"node_count,omitempty"`
 	BrokerCount           int                   `json:"broker_count,omitempty"`
 	ControllerID          int                   `json:"controller_id,omitempty"`
 	ControllerCount       int                   `json:"controller_count,omitempty"`
@@ -307,6 +308,7 @@ type ControlCenterReport struct {
 	Available         bool                      `json:"available"`
 	Version           string                    `json:"version,omitempty"`
 	URL               string                    `json:"url,omitempty"`
+	NodeCount         int                       `json:"node_count,omitempty"`
 	MonitoredClusters int                       `json:"monitored_clusters,omitempty"`
 	Clusters          []C3ClusterInfo           `json:"clusters,omitempty"`
 	ConnectClusters   []C3ConnectClusterInfo    `json:"connect_clusters,omitempty"`

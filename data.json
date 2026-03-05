@@ -1,0 +1,549 @@
+{
+  "timestamp": "2026-03-05T13:18:54-06:00",
+  "total_clusters": 2,
+  "clusters": [
+    {
+      "name": "multi-cluster",
+      "status": "healthy",
+      "kafka": {
+        "available": true,
+        "broker_count": 3,
+        "controller_type": "kraft",
+        "controller_count": 3,
+        "topic_count": 16,
+        "internal_topics": 10,
+        "external_topics": 6,
+        "total_partitions": 246,
+        "security_config": {
+          "security_protocols": [
+            "PLAINTEXT"
+          ],
+          "ssl_enabled": false,
+          "sasl_enabled": false,
+          "authentication_method": "PLAINTEXT"
+        },
+        "topics": [
+          {
+            "name": "__consumer_offsets",
+            "partitions": 50,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 43008,
+            "is_internal": true
+          },
+          {
+            "name": "__internal_confluent_only_broker_info",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "is_internal": true
+          },
+          {
+            "name": "__transaction_state",
+            "partitions": 50,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 16384,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-alerts",
+            "partitions": 12,
+            "replication_factor": 3,
+            "retention_ms": 604800000,
+            "retention_bytes": -1,
+            "size_bytes": 12288,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-command",
+            "partitions": 1,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 11264,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-ksql-default__command_topic",
+            "partitions": 1,
+            "replication_factor": 3,
+            "retention_ms": -1,
+            "retention_bytes": 1073741824,
+            "size_bytes": 3072,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-link-metadata",
+            "partitions": 50,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 17408,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-metrics",
+            "partitions": 12,
+            "replication_factor": 3,
+            "retention_ms": 259200000,
+            "retention_bytes": -1,
+            "size_bytes": 19961856,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-telemetry-metrics",
+            "partitions": 12,
+            "replication_factor": 3,
+            "retention_ms": 259200000,
+            "retention_bytes": -1,
+            "size_bytes": 20506444800,
+            "is_internal": true
+          },
+          {
+            "name": "_schemas",
+            "partitions": 1,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 7168,
+            "is_internal": true
+          },
+          {
+            "name": "connect-cluster-configs",
+            "partitions": 1,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 402432,
+            "is_internal": false
+          },
+          {
+            "name": "connect-cluster-offsets",
+            "partitions": 25,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 142900224,
+            "is_internal": false
+          },
+          {
+            "name": "connect-cluster-status",
+            "partitions": 5,
+            "replication_factor": 3,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 43008,
+            "is_internal": false
+          },
+          {
+            "name": "multi-node-cluster-2-4-0-1-AlertHistoryStore-changelog",
+            "partitions": 12,
+            "replication_factor": 3,
+            "retention_ms": 691200000,
+            "retention_bytes": -1,
+            "size_bytes": 12288,
+            "is_internal": false
+          },
+          {
+            "name": "multi-node-cluster-2-4-0-1-AlertHistoryStore-repartition",
+            "partitions": 12,
+            "replication_factor": 3,
+            "retention_ms": 691200000,
+            "retention_bytes": -1,
+            "size_bytes": 12288,
+            "is_internal": false
+          },
+          {
+            "name": "users",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 604800000,
+            "retention_bytes": -1,
+            "size_bytes": 5723367424,
+            "is_internal": false
+          }
+        ],
+        "brokers": [
+          {
+            "id": 1,
+            "host": "node-1.lab.int",
+            "port": 0
+          },
+          {
+            "id": 2,
+            "host": "node-2.lab.int",
+            "port": 0
+          },
+          {
+            "id": 3,
+            "host": "node-3.lab.int",
+            "port": 0
+          }
+        ],
+        "cluster_metrics": {
+          "bytes_in_per_sec": 0,
+          "bytes_out_per_sec": 0,
+          "messages_in_per_sec": 0,
+          "total_disk_usage_bytes": 26393254912,
+          "under_replicated_partitions": 0
+        }
+      },
+      "schema_registry": {
+        "available": true,
+        "mode": "READWRITE",
+        "total_schemas": 2,
+        "node_count": 1
+      },
+      "kafka_connect": {
+        "available": true,
+        "version": "8.1.1-ce",
+        "total_connectors": 1,
+        "source_connectors": 1,
+        "connectors": [
+          {
+            "name": "users-datagen-connector",
+            "type": "source",
+            "state": "RUNNING",
+            "tasks": 5,
+            "connector_class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+            "quickstart": "USERS"
+          }
+        ],
+        "worker_count": 1
+      },
+      "ksqldb": {
+        "available": true,
+        "tables": 1,
+        "node_count": 1
+      },
+      "rest_proxy": {
+        "available": true,
+        "version": "v3+",
+        "broker_count": 3,
+        "controller_id": 1,
+        "controller_mode": "kraft-combined",
+        "cluster_id": "DTnu-peET9CAw7zHJLHpVw",
+        "topic_count": 12,
+        "internal_topics": 6,
+        "external_topics": 6,
+        "partition_count": 95,
+        "avg_replication_factor": 2.8333333333333335,
+        "security_config": {
+          "sasl_mechanisms": [
+            "GSSAPI"
+          ],
+          "security_protocols": [
+            "PLAINTEXT"
+          ],
+          "ssl_enabled": false,
+          "sasl_enabled": true,
+          "authentication_method": "SASL/GSSAPI"
+        },
+        "consumer_groups": [
+          {
+            "group_id": "multi-node-cluster-2-4-0-1",
+            "state": "STABLE",
+            "partition_assignor": "stream"
+          },
+          {
+            "group_id": "multi-node-cluster-2-4-0-1-command",
+            "state": "STABLE",
+            "partition_assignor": "stream"
+          }
+        ],
+        "consumer_group_count": 2
+      },
+      "control_center": {
+        "available": true,
+        "url": "http://node-5.lab.int:9021",
+        "monitored_clusters": 2
+      },
+      "prometheus": {
+        "available": true,
+        "version": "3.7.3",
+        "url": "http://node-5.lab.int:9090",
+        "node_count": 1,
+        "cluster_metrics": {
+          "bytes_in_per_sec": 0,
+          "bytes_out_per_sec": 0,
+          "messages_in_per_sec": 0,
+          "active_controller_count": 0,
+          "under_replicated_partitions": 0,
+          "offline_partitions": 0,
+          "total_partitions": 0,
+          "total_brokers": 0,
+          "online_brokers": 0,
+          "leader_count": 0,
+          "total_consumer_lag": 0,
+          "consumer_groups": 0
+        }
+      },
+      "alertmanager": {
+        "available": true,
+        "version": "0.29.0",
+        "url": "http://node-5.lab.int:9093",
+        "cluster_size": 1,
+        "cluster_peers": [
+          "0.0.0.0:9093"
+        ]
+      }
+    },
+    {
+      "name": "single-cluster",
+      "status": "healthy",
+      "kafka": {
+        "available": true,
+        "broker_count": 1,
+        "controller_type": "kraft",
+        "controller_count": 1,
+        "topic_count": 14,
+        "internal_topics": 7,
+        "external_topics": 7,
+        "total_partitions": 173,
+        "security_config": {
+          "security_protocols": [
+            "PLAINTEXT"
+          ],
+          "ssl_enabled": false,
+          "sasl_enabled": false,
+          "authentication_method": "PLAINTEXT"
+        },
+        "topics": [
+          {
+            "name": "__consumer_offsets",
+            "partitions": 50,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 106496,
+            "is_internal": true
+          },
+          {
+            "name": "__internal_confluent_only_broker_info",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 9216,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-command",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 2048,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-ksql-default__command_topic",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": -1,
+            "retention_bytes": 1073741824,
+            "size_bytes": 1024,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-link-metadata",
+            "partitions": 50,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 51200,
+            "is_internal": true
+          },
+          {
+            "name": "_confluent-telemetry-metrics",
+            "partitions": 12,
+            "replication_factor": 1,
+            "retention_ms": 259200000,
+            "retention_bytes": -1,
+            "size_bytes": 6012991488,
+            "is_internal": true
+          },
+          {
+            "name": "_schemas",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 12288,
+            "is_internal": true
+          },
+          {
+            "name": "connect-cluster-configs",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 386048,
+            "is_internal": false
+          },
+          {
+            "name": "connect-cluster-offsets",
+            "partitions": 25,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 131869696,
+            "is_internal": false
+          },
+          {
+            "name": "connect-cluster-status",
+            "partitions": 5,
+            "replication_factor": 1,
+            "retention_ms": 86400000,
+            "retention_bytes": 1073741824,
+            "size_bytes": 12288,
+            "is_internal": false
+          },
+          {
+            "name": "multi-node-cluster-2-4-0-1-AlertHistoryStore-changelog",
+            "partitions": 12,
+            "replication_factor": 1,
+            "retention_ms": 691200000,
+            "retention_bytes": -1,
+            "size_bytes": 12288,
+            "is_internal": false
+          },
+          {
+            "name": "multi-node-cluster-2-4-0-1-AlertHistoryStore-repartition",
+            "partitions": 12,
+            "replication_factor": 1,
+            "retention_ms": 691200000,
+            "retention_bytes": -1,
+            "size_bytes": 12288,
+            "is_internal": false
+          },
+          {
+            "name": "stocks",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 604800000,
+            "retention_bytes": -1,
+            "size_bytes": 5278776320,
+            "is_internal": false
+          },
+          {
+            "name": "users",
+            "partitions": 1,
+            "replication_factor": 1,
+            "retention_ms": 604800000,
+            "retention_bytes": -1,
+            "size_bytes": 5723346944,
+            "is_internal": false
+          }
+        ],
+        "brokers": [
+          {
+            "id": 1,
+            "host": "node-6.lab.int",
+            "port": 0
+          }
+        ],
+        "cluster_metrics": {
+          "bytes_in_per_sec": 0,
+          "bytes_out_per_sec": 0,
+          "messages_in_per_sec": 0,
+          "total_disk_usage_bytes": 17147589632,
+          "under_replicated_partitions": 0
+        }
+      },
+      "schema_registry": {
+        "available": true,
+        "mode": "READWRITE",
+        "total_schemas": 2,
+        "node_count": 1
+      },
+      "kafka_connect": {
+        "available": true,
+        "version": "8.1.1-ce",
+        "total_connectors": 1,
+        "source_connectors": 1,
+        "connectors": [
+          {
+            "name": "stocks-datagen-connector",
+            "type": "source",
+            "state": "RUNNING",
+            "tasks": 1,
+            "connector_class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+            "quickstart": "STOCK_TRADES"
+          }
+        ],
+        "worker_count": 1
+      },
+      "ksqldb": {
+        "available": true,
+        "node_count": 1
+      },
+      "rest_proxy": {
+        "available": true,
+        "version": "v3+",
+        "broker_count": 1,
+        "controller_id": 1,
+        "controller_mode": "kraft-combined",
+        "cluster_id": "pAJeHhziS_OfAuseLzWAMw",
+        "topic_count": 11,
+        "internal_topics": 4,
+        "external_topics": 7,
+        "partition_count": 72,
+        "avg_replication_factor": 1,
+        "security_config": {
+          "sasl_mechanisms": [
+            "GSSAPI"
+          ],
+          "security_protocols": [
+            "PLAINTEXT"
+          ],
+          "ssl_enabled": false,
+          "sasl_enabled": true,
+          "authentication_method": "SASL/GSSAPI"
+        },
+        "consumer_groups": [
+          {
+            "group_id": "_confluent-ksql-default_transient_transient_USER_717435874745983502_1772676973272",
+            "state": "EMPTY"
+          },
+          {
+            "group_id": "_confluent-ksql-default_transient_transient_USER_2492292233567616458_1772676853824",
+            "state": "EMPTY"
+          },
+          {
+            "group_id": "_confluent-ksql-default_transient_transient_USER_4379240540337807065_1772676727818",
+            "state": "EMPTY"
+          }
+        ],
+        "consumer_group_count": 3
+      },
+      "control_center": {
+        "available": false
+      },
+      "prometheus": {
+        "available": false,
+        "cluster_metrics": {
+          "bytes_in_per_sec": 0,
+          "bytes_out_per_sec": 0,
+          "messages_in_per_sec": 0,
+          "active_controller_count": 0,
+          "under_replicated_partitions": 0,
+          "offline_partitions": 0,
+          "total_partitions": 0,
+          "total_brokers": 0,
+          "online_brokers": 0,
+          "leader_count": 0,
+          "total_consumer_lag": 0,
+          "consumer_groups": 0
+        }
+      },
+      "alertmanager": {
+        "available": false
+      }
+    }
+  ]
+}

@@ -603,8 +603,12 @@
                 if (name === 'Kafka') {
                     details = `
                         <div class="detail-row">
-                            <span class="detail-label">Brokers:</span>
+                            <span class="detail-label">Brokers Nodes:</span>
                             <span class="detail-value">${component.broker_count}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Controller Nodes:</span>
+                            <span class="detail-value">${component.controller_count}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Controller:</span>
@@ -634,7 +638,7 @@
                             <span class="detail-value">${component.total_schemas}</span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">Nodes:</span>
+                            <span class="detail-label">Schema Registry Nodes:</span>
                             <span class="detail-value">${component.node_count}</span>
                         </div>
                     `;
@@ -653,7 +657,7 @@
                             <span class="detail-value">${component.source_connectors}</span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">Workers:</span>
+                            <span class="detail-label">Worker Nodes:</span>
                             <span class="detail-value">${component.worker_count}</span>
                         </div>
                     `;
@@ -665,7 +669,7 @@
                             <span class="detail-value">${component.tables}</span>
                         </div>` : ''}
                         <div class="detail-row">
-                            <span class="detail-label">Nodes:</span>
+                            <span class="detail-label">ksqlDB Nodes:</span>
                             <span class="detail-value">${component.node_count}</span>
                         </div>
                     `;
@@ -679,6 +683,10 @@
                             <span class="detail-label">Cluster ID:</span>
                             <span class="detail-value">${component.cluster_id}</span>
                         </div>
+                        <div class="detail-row">
+                            <span class="detail-label">REST Proxy Nodes:</span>
+                            <span class="detail-value">${component.node_count || 1}</span>
+                        </div>
                     `;
                 } else if (name === 'Control Center') {
                     details = `
@@ -689,6 +697,10 @@
                         <div class="detail-row">
                             <span class="detail-label">Monitored:</span>
                             <span class="detail-value">${component.monitored_clusters}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Control Center Nodes:</span>
+                            <span class="detail-value">${component.node_count || 1}</span>
                         </div>
                     `;
                 } else if (name === 'Prometheus') {
@@ -701,6 +713,10 @@
                             <span class="detail-label">URL:</span>
                             <span class="detail-value">${component.url}</span>
                         </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Prometheus Nodes:</span>
+                            <span class="detail-value">${component.node_count}</span>
+                        </div>
                     `;
                 } else if (name === 'Alertmanager') {
                     details = `
@@ -711,6 +727,10 @@
                         <div class="detail-row">
                             <span class="detail-label">Cluster Size:</span>
                             <span class="detail-value">${component.cluster_size}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cluster Peers Size:</span>
+                            <span class="detail-value">${component.cluster_peers.length}</span>
                         </div>
                     `;
                 }

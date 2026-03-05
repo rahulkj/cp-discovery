@@ -532,6 +532,9 @@ func printSummary(report *model.DiscoveryReport) {
 		if cluster.RestProxy.Available {
 			fmt.Printf("  REST Proxy:\n")
 			fmt.Printf("    Version: %s\n", cluster.RestProxy.Version)
+			if cluster.RestProxy.NodeCount > 0 {
+				fmt.Printf("    Nodes: %d\n", cluster.RestProxy.NodeCount)
+			}
 			fmt.Printf("    Cluster ID: %s\n", cluster.RestProxy.ClusterID)
 			fmt.Printf("    Brokers: %d\n", cluster.RestProxy.BrokerCount)
 			fmt.Printf("    Controller Mode: %s\n", cluster.RestProxy.ControllerMode)
@@ -556,6 +559,9 @@ func printSummary(report *model.DiscoveryReport) {
 		if cluster.ControlCenter.Available {
 			fmt.Printf("  Control Center:\n")
 			fmt.Printf("    Version: %s\n", cluster.ControlCenter.Version)
+			if cluster.ControlCenter.NodeCount > 0 {
+				fmt.Printf("    Nodes: %d\n", cluster.ControlCenter.NodeCount)
+			}
 			fmt.Printf("    URL: %s\n", cluster.ControlCenter.URL)
 			if cluster.ControlCenter.MonitoredClusters > 0 {
 				fmt.Printf("    Monitored Clusters: %d\n", cluster.ControlCenter.MonitoredClusters)
