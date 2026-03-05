@@ -1,0 +1,80 @@
+# Confluent Platform Discovery Configuration
+# See CONFIG_REFERENCE.md for complete documentation
+# See config-complete.yaml for all available options
+# See config-auth-examples.yaml for authentication examples
+
+clusters:
+  # ============================================================================
+  # Minimal Configuration - Auto-Discovery
+  # ============================================================================
+  - name: "local-cluster"
+    kafka:
+      bootstrap_servers: "localhost:9092"
+
+    # All components auto-discovered at:
+    # - Schema Registry: http://localhost:8081
+    # - Kafka Connect: http://localhost:8083
+    # - ksqlDB: http://localhost:8088
+    # - REST Proxy: http://localhost:8082
+    # - Control Center: http://localhost:9021
+    # - Prometheus: http://localhost:9090
+    # - Alertmanager: http://localhost:9093
+
+  # ============================================================================
+  # With Authentication
+  # ============================================================================
+  - name: "staging-cluster"
+    kafka:
+      bootstrap_servers: "broker.staging.example.com:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-256"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    # Shared auth for all Confluent Platform components
+    shared_auth:
+      username: "${CP_USER}"
+      password: "${CP_PASS}"
+
+  # ============================================================================
+  # Production with Custom URLs
+  # ============================================================================
+  # - name: "production-cluster"
+  #   kafka:
+  #     bootstrap_servers: "${PROD_KAFKA_BROKERS}"
+  #     security_protocol: "SASL_SSL"
+  #     sasl_mechanism: "SCRAM-SHA-512"
+  #     sasl_username: "${PROD_KAFKA_USER}"
+  #     sasl_password: "${PROD_KAFKA_PASS}"
+
+  #   shared_auth:
+  #     username: "${PROD_CP_USER}"
+  #     password: "${PROD_CP_PASS}"
+
+  #   # Override URLs when different from auto-discovered
+  #   schema_registry:
+  #     url: "https://sr-prod.example.com:8081"
+
+  #   kafka_connect:
+  #     url: "https://connect-prod.example.com:8083"
+
+  #   control_center:
+  #     url: "https://c3-prod.example.com:9021"
+
+  #   prometheus:
+  #     url: "http://prometheus.monitoring.internal:9090"
+  #     basic_auth_username: "${PROM_USER}"
+  #     basic_auth_password: "${PROM_PASS}"
+
+  #   # Disable components not deployed
+  #   overrides:
+  #     disable_ksqldb: true
+  #     disable_rest_proxy: true
+
+# ==============================================================================
+# Output Configuration
+# ==============================================================================
+output:
+  format: "json"   # Options: json, yaml
+  file: "discovery-report.json"
+  detailed: true   # Include detailed topic/broker/connector information

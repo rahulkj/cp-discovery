@@ -1,0 +1,33 @@
+# Confluent Platform Discovery Configuration (Optimized)
+# The tool automatically discovers component URLs based on Kafka broker host
+# and applies shared authentication across all components
+
+clusters:
+  # Minimal configuration - auto-discovers all component URLs
+  - name: "local-cluster"
+    kafka:
+      bootstrap_servers: "node-1.lab.int:9092"
+    # URLs auto-discovered:
+    schema_registry: 
+      url: http://node-4.lab.int:8081
+    kafka_connect: 
+      url: http://node-4.lab.int:8083
+    ksqldb: 
+      url: http://node-4.lab.int:8088
+    rest_proxy: 
+      url: http://node-5.lab.int:8082
+    control_center:
+      url: http://node-5.lab.int:9021
+    prometheus:
+      url: http://node-5.lab.int:9090
+    alertmanager:
+      url: http://node-5.lab.int:9093
+
+  # With shared authentication for all components
+  - name: "staging-cluster"
+    kafka:
+      bootstrap_servers: "node-6.lab.int:9092"
+    overrides:
+      disable_control_center: true
+      disable_prometheus: true
+      disable_alertmanager: true

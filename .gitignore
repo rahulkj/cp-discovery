@@ -1,0 +1,38 @@
+# Binaries
+confluent-discovery
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output coverage files
+*.out
+*.prof
+
+# Go workspace file
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Config files with secrets
+config.local.yaml
+*.local.yaml
+
+# Output reports
+discovery-report.*
+*.json
+*.yaml
+!config.yaml
+
+# OS
+.DS_Store
+Thumbs.db
