@@ -139,6 +139,7 @@ func DiscoverControlCenter(config model.ControlCenterConfig, detailed bool) (mod
 	}
 
 	report.Available = true
+	report.NodeCount = 1 // Control Center doesn't expose cluster info; assume at least 1 node
 
 	// Try to get version and cluster information
 	clustersURL := fmt.Sprintf("%s/2.0/clusters/kafka", config.URL)

@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confluent Platform Discovery Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+
+        .upload-section h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .upload-section p {
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+
+        .file-upload {
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .file-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        #fileName {
+            margin-top: 15px;
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .content {
+            display: none;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .meta {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .summary-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            color: #6c757d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            padding: 20px 30px 0 30px;
+            border-bottom: 2px solid #e9ecef;
+            background: white;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            background: #f8f9fa;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .cluster-section {
+            margin-bottom: 40px;
+        }
+
+        .cluster-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cluster-name {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-healthy {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-partial {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .component-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .component-card.unavailable {
+            opacity: 0.5;
+        }
+
+        .component-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .component-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .unavailable-badge {
+            background: #dc3545;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.75em;
+        }
+
+        .available-badge {
+            background: #28a745;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.75em;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .topics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .topics-table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #2d3748;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .topics-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .topics-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .internal-topic {
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .connector-list {
+            margin-top: 15px;
+        }
+
+        .connector-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .connector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .connector-name {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .connector-state {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .state-running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .state-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .consumer-group-list {
+            margin-top: 15px;
+        }
+
+        .consumer-group-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .json-viewer {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        .json-viewer pre {
+            margin: 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .metric-good {
+            color: #28a745;
+        }
+
+        .metric-warning {
+            color: #ffc107;
+        }
+
+        .metric-error {
+            color: #dc3545;
+        }
+
+        .section-header {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2d3748;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .broker-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .broker-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .broker-id {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .broker-host {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upload-section">
+            <h1>🚀 Confluent Platform Discovery Viewer</h1>
+            <p>Upload your data.json file to view a comprehensive analysis of your Confluent Platform clusters</p>
+            <label class="file-upload">
+                <input type="file" id="fileInput" accept=".json">
+                📁 Choose File
+            </label>
+            <div id="fileName"></div>
+        </div>
+
+        <div class="content" id="content">
+            <div class="header">
+                <h1>Confluent Platform Discovery Report</h1>
+                <div class="meta">
+                    <div id="timestamp"></div>
+                </div>
+            </div>
+
+            <div class="summary" id="summary"></div>
+
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('overview')">Overview</div>
+                <div class="tab" onclick="switchTab('kafka')">Kafka Details</div>
+                <div class="tab" onclick="switchTab('components')">Components</div>
+                <div class="tab" onclick="switchTab('raw')">Raw JSON</div>
+            </div>
+
+            <div id="overview-content" class="tab-content active"></div>
+            <div id="kafka-content" class="tab-content"></div>
+            <div id="components-content" class="tab-content"></div>
+            <div id="raw-content" class="tab-content">
+                <div class="json-viewer">
+                    <pre id="rawJson"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let reportData = null;
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileName').textContent = `Selected: ${file.name}`;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        reportData = JSON.parse(event.target.result);
+                        renderReport(reportData);
+                        document.querySelector('.upload-section').style.display = 'none';
+                        document.getElementById('content').style.display = 'block';
+                    } catch (error) {
+                        alert('Error parsing JSON file: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function renderReport(data) {
+            // Timestamp
+            document.getElementById('timestamp').textContent = 'Generated: ' + new Date(data.timestamp).toLocaleString();
+
+            // Summary
+            renderSummary(data);
+
+            // Overview
+            renderOverview(data);
+
+            // Kafka Details
+            renderKafkaDetails(data);
+
+            // Components
+            renderComponents(data);
+
+            // Raw JSON
+            document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function renderSummary(data) {
+            const summary = document.getElementById('summary');
+
+            let totalBrokers = 0;
+            let totalTopics = 0;
+            let totalPartitions = 0;
+            let totalConnectors = 0;
+            let totalSchemas = 0;
+            let healthyClusters = 0;
+
+            data.clusters.forEach(cluster => {
+                if (cluster.status === 'healthy') healthyClusters++;
+                if (cluster.kafka && cluster.kafka.available) {
+                    totalBrokers += cluster.kafka.broker_count || 0;
+                    totalTopics += cluster.kafka.topic_count || 0;
+                    totalPartitions += cluster.kafka.total_partitions || 0;
+                }
+                if (cluster.kafka_connect && cluster.kafka_connect.available) {
+                    totalConnectors += cluster.kafka_connect.total_connectors || 0;
+                }
+                if (cluster.schema_registry && cluster.schema_registry.available) {
+                    totalSchemas += cluster.schema_registry.total_schemas || 0;
+                }
+            });
+
+            summary.innerHTML = `
+                <div class="summary-card">
+                    <div class="number">${data.total_clusters}</div>
+                    <div class="label">Total Clusters</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${healthyClusters}</div>
+                    <div class="label">Healthy Clusters</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalBrokers}</div>
+                    <div class="label">Total Brokers</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalTopics}</div>
+                    <div class="label">Total Topics</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalPartitions}</div>
+                    <div class="label">Total Partitions</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalConnectors}</div>
+                    <div class="label">Connectors</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalSchemas}</div>
+                    <div class="label">Schemas</div>
+                </div>
+            `;
+        }
+
+        function renderOverview(data) {
+            const content = document.getElementById('overview-content');
+            let html = '';
+
+            data.clusters.forEach(cluster => {
+                html += `
+                    <div class="cluster-section">
+                        <div class="cluster-header">
+                            <div class="cluster-name">${cluster.name}</div>
+                            <div class="status-badge status-${cluster.status}">${cluster.status}</div>
+                        </div>
+                        <div class="component-grid">
+                            ${renderOverviewCard('Kafka', cluster.kafka)}
+                            ${renderOverviewCard('Schema Registry', cluster.schema_registry)}
+                            ${renderOverviewCard('Kafka Connect', cluster.kafka_connect)}
+                            ${renderOverviewCard('ksqlDB', cluster.ksqldb)}
+                            ${renderOverviewCard('REST Proxy', cluster.rest_proxy)}
+                            ${renderOverviewCard('Control Center', cluster.control_center)}
+                            ${renderOverviewCard('Prometheus', cluster.prometheus)}
+                            ${renderOverviewCard('Alertmanager', cluster.alertmanager)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            content.innerHTML = html;
+        }
+
+        function renderOverviewCard(name, component) {
+            const icon = name.split(' ').map(w => w[0]).join('').toUpperCase();
+            const available = component && component.available;
+
+            let details = '';
+            if (available) {
+                if (name === 'Kafka') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Brokers Nodes:</span>
+                            <span class="detail-value">${component.broker_count}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Controller Nodes:</span>
+                            <span class="detail-value">${component.controller_count}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Controller:</span>
+                            <span class="detail-value">${component.controller_type}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Topics:</span>
+                            <span class="detail-value">${component.topic_count}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Partitions:</span>
+                            <span class="detail-value">${component.total_partitions}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Storage:</span>
+                            <span class="detail-value">${formatBytes(component.cluster_metrics.total_disk_usage_bytes)}</span>
+                        </div>
+                    `;
+                } else if (name === 'Schema Registry') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Mode:</span>
+                            <span class="detail-value">${component.mode}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Schemas:</span>
+                            <span class="detail-value">${component.total_schemas}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Schema Registry Nodes:</span>
+                            <span class="detail-value">${component.node_count}</span>
+                        </div>
+                    `;
+                } else if (name === 'Kafka Connect') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Version:</span>
+                            <span class="detail-value">${component.version}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Connectors:</span>
+                            <span class="detail-value">${component.total_connectors}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Source:</span>
+                            <span class="detail-value">${component.source_connectors}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Worker Nodes:</span>
+                            <span class="detail-value">${component.worker_count}</span>
+                        </div>
+                    `;
+                } else if (name === 'ksqlDB') {
+                    details = `
+                        ${component.tables !== undefined ? `
+                        <div class="detail-row">
+                            <span class="detail-label">Tables:</span>
+                            <span class="detail-value">${component.tables}</span>
+                        </div>` : ''}
+                        <div class="detail-row">
+                            <span class="detail-label">ksqlDB Nodes:</span>
+                            <span class="detail-value">${component.node_count}</span>
+                        </div>
+                    `;
+                } else if (name === 'REST Proxy') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Version:</span>
+                            <span class="detail-value">${component.version}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cluster ID:</span>
+                            <span class="detail-value">${component.cluster_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">REST Proxy Nodes:</span>
+                            <span class="detail-value">${component.node_count || 1}</span>
+                        </div>
+                    `;
+                } else if (name === 'Control Center') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">URL:</span>
+                            <span class="detail-value">${component.url}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Monitored:</span>
+                            <span class="detail-value">${component.monitored_clusters}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Control Center Nodes:</span>
+                            <span class="detail-value">${component.node_count || 1}</span>
+                        </div>
+                    `;
+                } else if (name === 'Prometheus') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Version:</span>
+                            <span class="detail-value">${component.version}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">URL:</span>
+                            <span class="detail-value">${component.url}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Prometheus Nodes:</span>
+                            <span class="detail-value">${component.node_count}</span>
+                        </div>
+                    `;
+                } else if (name === 'Alertmanager') {
+                    details = `
+                        <div class="detail-row">
+                            <span class="detail-label">Version:</span>
+                            <span class="detail-value">${component.version}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cluster Size:</span>
+                            <span class="detail-value">${component.cluster_size}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cluster Peers Size:</span>
+                            <span class="detail-value">${component.cluster_peers.length}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+                <div class="component-card ${!available ? 'unavailable' : ''}">
+                    <div class="component-title">
+                        <div class="component-icon">${icon}</div>
+                        <span>${name}</span>
+                        <span class="${available ? 'available-badge' : 'unavailable-badge'}">
+                            ${available ? 'Available' : 'Unavailable'}
+                        </span>
+                    </div>
+                    ${details}
+                </div>
+            `;
+        }
+
+        function renderKafkaDetails(data) {
+            const content = document.getElementById('kafka-content');
+            let html = '';
+
+            data.clusters.forEach(cluster => {
+                if (!cluster.kafka || !cluster.kafka.available) return;
+
+                const kafka = cluster.kafka;
+                html += `
+                    <div class="cluster-section">
+                        <div class="cluster-header">
+                            <div class="cluster-name">${cluster.name} - Kafka</div>
+                        </div>
+
+                        <div class="section-header">Brokers</div>
+                        <div class="broker-list">
+                            ${kafka.brokers.map(broker => `
+                                <div class="broker-item">
+                                    <div class="broker-id">Broker ${broker.id}</div>
+                                    <div class="broker-host">${broker.host}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="section-header">Topics (${kafka.topics.length})</div>
+                        <table class="topics-table">
+                            <thead>
+                                <tr>
+                                    <th>Topic Name</th>
+                                    <th>Partitions</th>
+                                    <th>Replication</th>
+                                    <th>Retention</th>
+                                    <th>Size</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${kafka.topics.map(topic => `
+                                    <tr class="${topic.is_internal ? 'internal-topic' : ''}">
+                                        <td>${topic.name}</td>
+                                        <td>${topic.partitions}</td>
+                                        <td>${topic.replication_factor}</td>
+                                        <td>${formatRetention(topic.retention_ms)}</td>
+                                        <td>${formatBytes(topic.size_bytes)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            });
+
+            content.innerHTML = html;
+        }
+
+        function renderComponents(data) {
+            const content = document.getElementById('components-content');
+            let html = '';
+
+            data.clusters.forEach(cluster => {
+                html += `<div class="cluster-section">
+                    <div class="cluster-header">
+                        <div class="cluster-name">${cluster.name} - Components</div>
+                    </div>`;
+
+                // Kafka Connect
+                if (cluster.kafka_connect && cluster.kafka_connect.available) {
+                    html += `
+                        <div class="section-header">Kafka Connect</div>
+                        <div class="connector-list">
+                            ${cluster.kafka_connect.connectors.map(conn => `
+                                <div class="connector-item">
+                                    <div class="connector-header">
+                                        <span class="connector-name">${conn.name}</span>
+                                        <span class="connector-state state-${conn.state.toLowerCase()}">${conn.state}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Type:</span>
+                                        <span class="detail-value">${conn.type}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Class:</span>
+                                        <span class="detail-value">${conn.connector_class}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Tasks:</span>
+                                        <span class="detail-value">${conn.tasks}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                // REST Proxy Consumer Groups
+                if (cluster.rest_proxy && cluster.rest_proxy.available && cluster.rest_proxy.consumer_groups) {
+                    html += `
+                        <div class="section-header">Consumer Groups (${cluster.rest_proxy.consumer_group_count})</div>
+                        <div class="consumer-group-list">
+                            ${cluster.rest_proxy.consumer_groups.map(group => `
+                                <div class="consumer-group-item">
+                                    <span>${group.group_id}</span>
+                                    <span class="status-badge status-${group.state === 'STABLE' ? 'healthy' : 'partial'}">${group.state}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            });
+
+            content.innerHTML = html;
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabName + '-content').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatRetention(ms) {
+            if (ms === -1) return 'Unlimited';
+            if (!ms) return 'N/A';
+            const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+            const hours = Math.floor(ms / (1000 * 60 * 60));
+            if (days > 0) return `${days}d`;
+            return `${hours}h`;
+        }
+    </script>
+</body>
+</html>

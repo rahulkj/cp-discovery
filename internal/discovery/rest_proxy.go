@@ -209,6 +209,7 @@ func DiscoverRestProxy(config model.RestProxyConfig, detailed bool) (model.RestP
 	}
 
 	report.Available = true
+	report.NodeCount = 1 // REST Proxy doesn't expose cluster info; assume at least 1 node
 
 	// Try to get version from response
 	body, _ := io.ReadAll(resp.Body)
