@@ -286,6 +286,9 @@ func discoverCluster(config model.ClusterConfig, detailed bool, bar *progressbar
 		enrichTopicsWithSchemas(&report)
 	}
 
+	// Extract Confluent Platform version from available components
+	report.ConfluentPlatformVersion = extractConfluentPlatformVersion(&report)
+
 	if len(report.Errors) > 0 {
 		report.Status = "partial"
 	}
@@ -404,6 +407,9 @@ func printSummary(report *model.DiscoveryReport) {
 
 	for _, cluster := range report.Clusters {
 		fmt.Printf("Cluster: %s [%s]\n", cluster.Name, cluster.Status)
+		if cluster.ConfluentPlatformVersion != "" {
+			fmt.Printf("Confluent Platform Version: %s\n", cluster.ConfluentPlatformVersion)
+		}
 		fmt.Println(strings.Repeat("-", 80))
 
 		// Kafka
@@ -677,4 +683,32 @@ func extractTopicFromSubject(subject string) string {
 	subject = strings.TrimSuffix(subject, "-value")
 
 	return subject
+}
+
+// extractConfluentPlatformVersion extracts the Confluent Platform version from available components
+func extractConfluentPlatformVersion(report *model.ClusterReport) string {
+	// Priority order: Schema Registry, Kafka Connect, REST Proxy, ksqlDB, Control Center
+	// These components typically have the full CP version in their version field
+
+	if report.SchemaRegistry.Available && report.SchemaRegistry.Version != "" {
+		return report.SchemaRegistry.Version
+	}
+
+	if report.KafkaConnect.Available && report.KafkaConnect.Version != "" {
+		return report.KafkaConnect.Version
+	}
+
+	if report.RestProxy.Available && report.RestProxy.Version != "" {
+		return report.RestProxy.Version
+	}
+
+	if report.KsqlDB.Available && report.KsqlDB.Version != "" {
+		return report.KsqlDB.Version
+	}
+
+	if report.ControlCenter.Available && report.ControlCenter.Version != "" {
+		return report.ControlCenter.Version
+	}
+
+	return ""
 }

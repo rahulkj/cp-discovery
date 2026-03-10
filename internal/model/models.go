@@ -138,17 +138,18 @@ type DiscoveryReport struct {
 
 // ClusterReport represents discovery results for a single cluster
 type ClusterReport struct {
-	Name          string                  `json:"name"`
-	Status        string                  `json:"status"`
-	Errors        []string                `json:"errors,omitempty"`
-	Kafka         KafkaReport             `json:"kafka"`
-	SchemaRegistry SchemaRegistryReport   `json:"schema_registry"`
-	KafkaConnect  KafkaConnectReport      `json:"kafka_connect"`
-	KsqlDB        KsqlDBReport            `json:"ksqldb"`
-	RestProxy     RestProxyReport         `json:"rest_proxy"`
-	ControlCenter ControlCenterReport     `json:"control_center"`
-	Prometheus    PrometheusReport        `json:"prometheus"`
-	Alertmanager  AlertmanagerReport      `json:"alertmanager"`
+	Name                      string                  `json:"name"`
+	Status                    string                  `json:"status"`
+	ConfluentPlatformVersion  string                  `json:"confluent_platform_version,omitempty"`
+	Errors                    []string                `json:"errors,omitempty"`
+	Kafka                     KafkaReport             `json:"kafka"`
+	SchemaRegistry            SchemaRegistryReport    `json:"schema_registry"`
+	KafkaConnect              KafkaConnectReport      `json:"kafka_connect"`
+	KsqlDB                    KsqlDBReport            `json:"ksqldb"`
+	RestProxy                 RestProxyReport         `json:"rest_proxy"`
+	ControlCenter             ControlCenterReport     `json:"control_center"`
+	Prometheus                PrometheusReport        `json:"prometheus"`
+	Alertmanager              AlertmanagerReport      `json:"alertmanager"`
 }
 
 // KafkaReport represents Kafka cluster discovery results
