@@ -445,12 +445,45 @@ func getC3SchemaRegistries(client *http.Client, config model.ControlCenterConfig
 						SubjectCount int      `json:"subjectCount"`
 						Mode         string   `json:"mode"`
 						Subjects     []string `json:"subjects"`
+						NodeCount    int      `json:"nodeCount"`
+						Nodes        []struct {
+							ID   string `json:"id"`
+							Host string `json:"host"`
+							Port int    `json:"port"`
+						} `json:"nodes"`
 					}
 					if json.Unmarshal(detailBody, &detail) == nil {
 						srInfo.Version = detail.Version
 						srInfo.SchemaCount = detail.SubjectCount
 						srInfo.Mode = detail.Mode
 						srInfo.Subjects = detail.Subjects
+						// Get node count from nodes array if available
+						if len(detail.Nodes) > 0 {
+							srInfo.NodeCount = len(detail.Nodes)
+						} else if detail.NodeCount > 0 {
+							srInfo.NodeCount = detail.NodeCount
+						}
+					}
+				}
+			}
+		}
+
+		// Try alternative nodes endpoint
+		if srInfo.NodeCount == 0 {
+			nodesURL := fmt.Sprintf("%s/2.0/clusters/schema-registry/%s/nodes", config.URL, cluster.ClusterID)
+			nodesReq, err := http.NewRequest("GET", nodesURL, nil)
+			if err == nil {
+				httpauth.ApplyControlCenterAuth(nodesReq, config)
+
+				nodesResp, err := client.Do(nodesReq)
+				if err == nil {
+					defer nodesResp.Body.Close()
+					if nodesResp.StatusCode == http.StatusOK {
+						nodesBody, _ := io.ReadAll(nodesResp.Body)
+						var nodes []map[string]interface{}
+						if json.Unmarshal(nodesBody, &nodes) == nil {
+							srInfo.NodeCount = len(nodes)
+						}
 					}
 				}
 			}
@@ -510,11 +543,44 @@ func getC3KsqlClusters(client *http.Client, config model.ControlCenterConfig) []
 						QueryCount  int `json:"queryCount"`
 						StreamCount int `json:"streamCount"`
 						TableCount  int `json:"tableCount"`
+						NodeCount   int `json:"nodeCount"`
+						Servers     []struct {
+							ID   string `json:"id"`
+							Host string `json:"host"`
+							Port int    `json:"port"`
+						} `json:"servers"`
 					}
 					if json.Unmarshal(detailBody, &detail) == nil {
 						ksqlInfo.QueryCount = detail.QueryCount
 						ksqlInfo.StreamCount = detail.StreamCount
 						ksqlInfo.TableCount = detail.TableCount
+						// Get node count from servers array if available
+						if len(detail.Servers) > 0 {
+							ksqlInfo.NodeCount = len(detail.Servers)
+						} else if detail.NodeCount > 0 {
+							ksqlInfo.NodeCount = detail.NodeCount
+						}
+					}
+				}
+			}
+		}
+
+		// Try alternative servers endpoint
+		if ksqlInfo.NodeCount == 0 {
+			serversURL := fmt.Sprintf("%s/2.0/clusters/ksql/%s/servers", config.URL, cluster.ClusterID)
+			serversReq, err := http.NewRequest("GET", serversURL, nil)
+			if err == nil {
+				httpauth.ApplyControlCenterAuth(serversReq, config)
+
+				serversResp, err := client.Do(serversReq)
+				if err == nil {
+					defer serversResp.Body.Close()
+					if serversResp.StatusCode == http.StatusOK {
+						serversBody, _ := io.ReadAll(serversResp.Body)
+						var servers []map[string]interface{}
+						if json.Unmarshal(serversBody, &servers) == nil {
+							ksqlInfo.NodeCount = len(servers)
+						}
 					}
 				}
 			}

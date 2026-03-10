@@ -61,6 +61,7 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 	report := model.KafkaConnectReport{
 		Available:        false,
 		Connectors:       make([]model.ConnectorInfo, 0),
+		Replicators:      make([]model.ReplicatorInfo, 0),
 		SinkConnectors:   0,
 		SourceConnectors: 0,
 	}
@@ -180,7 +181,9 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 		// Extract connector.class and quickstart from info data (if available)
 		connectorClass := ""
 		quickstart := ""
+		var connectorConfig map[string]interface{}
 		if infoData, ok := connectorsInfo[connectorName]; ok {
+			connectorConfig = infoData.Info.Config
 			if class, ok := infoData.Info.Config["connector.class"].(string); ok {
 				connectorClass = class
 			}
@@ -200,9 +203,93 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 		}
 
 		report.Connectors = append(report.Connectors, info)
+
+		// Check if this is a Replicator connector
+		if isReplicatorConnector(connectorClass) && connectorConfig != nil {
+			replicatorInfo := extractReplicatorInfo(connectorName, state, taskCount, connectorConfig)
+			report.Replicators = append(report.Replicators, replicatorInfo)
+		}
 	}
 
+	report.ReplicatorCount = len(report.Replicators)
+
 	return report, nil
+}
+
+func isReplicatorConnector(connectorClass string) bool {
+	if connectorClass == "" {
+		return false
+	}
+
+	// Check if connector class is a Confluent Replicator
+	replicatorClasses := []string{
+		"io.confluent.connect.replicator.ReplicatorSourceConnector",
+		"com.confluent.connect.replicator.ReplicatorSourceConnector",
+	}
+
+	for _, replicatorClass := range replicatorClasses {
+		if connectorClass == replicatorClass {
+			return true
+		}
+	}
+
+	// Also check if "Replicator" is in the class name
+	if len(connectorClass) > 0 && contains(connectorClass, "Replicator") {
+		return true
+	}
+
+	return false
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || indexOfString(s, substr) >= 0)
+}
+
+func indexOfString(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if s[i+j] != substr[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
+func extractReplicatorInfo(name, state string, tasks int, config map[string]interface{}) model.ReplicatorInfo {
+	replicatorInfo := model.ReplicatorInfo{
+		Name:  name,
+		State: state,
+		Tasks: tasks,
+	}
+
+	// Extract source and destination cluster information
+	if srcCluster, ok := config["src.kafka.bootstrap.servers"].(string); ok {
+		replicatorInfo.SourceCluster = srcCluster
+	}
+	if destCluster, ok := config["dest.kafka.bootstrap.servers"].(string); ok {
+		replicatorInfo.DestinationCluster = destCluster
+	}
+
+	// Extract topic whitelist/blacklist
+	if whitelist, ok := config["topic.whitelist"].(string); ok {
+		replicatorInfo.TopicWhitelist = whitelist
+	}
+	if blacklist, ok := config["topic.blacklist"].(string); ok {
+		replicatorInfo.TopicBlacklist = blacklist
+	}
+
+	// Extract topic rename format
+	if renameFormat, ok := config["topic.rename.format"].(string); ok {
+		replicatorInfo.TopicRenameFormat = renameFormat
+	}
+
+	return replicatorInfo
 }
 
 func getConnectWorkerCount(client *http.Client, config model.KafkaConnectConfig) int {

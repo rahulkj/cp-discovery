@@ -25,10 +25,20 @@ type SchemaRegistryClusterStatus struct {
 	Metadata  map[string]interface{} `json:"metadata"`
 }
 
+type SchemaExporter struct {
+	Name          string                 `json:"name"`
+	Subjects      []string               `json:"subjects"`
+	SubjectFormat string                 `json:"subjectFormat"`
+	ContextType   string                 `json:"contextType"`
+	Context       string                 `json:"context"`
+	Config        map[string]interface{} `json:"config"`
+}
+
 func DiscoverSchemaRegistry(config model.SchemaRegistryConfig, detailed bool) (model.SchemaRegistryReport, error) {
 	report := model.SchemaRegistryReport{
-		Available: false,
-		Subjects:  make([]string, 0),
+		Available:       false,
+		Subjects:        make([]string, 0),
+		SchemaExporters: make([]model.SchemaLinkInfo, 0),
 	}
 
 	if config.URL == "" {
@@ -153,5 +163,102 @@ func DiscoverSchemaRegistry(config model.SchemaRegistryConfig, detailed bool) (m
 		}
 	}
 
+	// Get schema exporters (for schema linking)
+	exporters := getSchemaExporters(client, config, detailed)
+	report.SchemaExporters = exporters
+	report.ExporterCount = len(exporters)
+
 	return report, nil
+}
+
+func getSchemaExporters(client *http.Client, config model.SchemaRegistryConfig, detailed bool) []model.SchemaLinkInfo {
+	exportersURL := fmt.Sprintf("%s/exporters", config.URL)
+	req, err := http.NewRequest("GET", exportersURL, nil)
+	if err != nil {
+		return []model.SchemaLinkInfo{}
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.SchemaLinkInfo{}
+	}
+	defer resp.Body.Close()
+
+	// If endpoint doesn't exist (404) or not supported, return empty list
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
+		return []model.SchemaLinkInfo{}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.SchemaLinkInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var exporterNames []string
+	if json.Unmarshal(body, &exporterNames) != nil {
+		return []model.SchemaLinkInfo{}
+	}
+
+	exporters := make([]model.SchemaLinkInfo, 0, len(exporterNames))
+
+	for _, exporterName := range exporterNames {
+		// Get detailed exporter information
+		exporterDetail := getExporterDetail(client, config, exporterName)
+		if exporterDetail != nil {
+			schemaLink := model.SchemaLinkInfo{
+				ExporterName:  exporterDetail.Name,
+				Subjects:      exporterDetail.Subjects,
+				SubjectFormat: exporterDetail.SubjectFormat,
+				ContextType:   exporterDetail.ContextType,
+				Context:       exporterDetail.Context,
+			}
+
+			// Convert config to map[string]string
+			if exporterDetail.Config != nil && detailed {
+				configs := make(map[string]string)
+				for key, val := range exporterDetail.Config {
+					if strVal, ok := val.(string); ok {
+						configs[key] = strVal
+					} else {
+						configs[key] = fmt.Sprintf("%v", val)
+					}
+				}
+				schemaLink.Config = configs
+			}
+
+			exporters = append(exporters, schemaLink)
+		}
+	}
+
+	return exporters
+}
+
+func getExporterDetail(client *http.Client, config model.SchemaRegistryConfig, exporterName string) *SchemaExporter {
+	exporterURL := fmt.Sprintf("%s/exporters/%s", config.URL, exporterName)
+	req, err := http.NewRequest("GET", exporterURL, nil)
+	if err != nil {
+		return nil
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var exporter SchemaExporter
+	if json.Unmarshal(body, &exporter) == nil {
+		return &exporter
+	}
+
+	return nil
 }

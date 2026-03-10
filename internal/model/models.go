@@ -212,23 +212,27 @@ type ClusterMetrics struct {
 
 // SchemaRegistryReport represents Schema Registry discovery results
 type SchemaRegistryReport struct {
-	Available    bool     `json:"available"`
-	Version      string   `json:"version,omitempty"`
-	Mode         string   `json:"mode,omitempty"`
-	TotalSchemas int      `json:"total_schemas,omitempty"`
-	Subjects     []string `json:"subjects,omitempty"`
-	NodeCount    int      `json:"node_count,omitempty"`
+	Available       bool              `json:"available"`
+	Version         string            `json:"version,omitempty"`
+	Mode            string            `json:"mode,omitempty"`
+	TotalSchemas    int               `json:"total_schemas,omitempty"`
+	Subjects        []string          `json:"subjects,omitempty"`
+	NodeCount       int               `json:"node_count,omitempty"`
+	SchemaExporters []SchemaLinkInfo  `json:"schema_exporters"`
+	ExporterCount   int               `json:"exporter_count"`
 }
 
 // KafkaConnectReport represents Kafka Connect discovery results
 type KafkaConnectReport struct {
-	Available        bool            `json:"available"`
-	Version          string          `json:"version,omitempty"`
-	TotalConnectors  int             `json:"total_connectors,omitempty"`
-	SinkConnectors   int             `json:"sink_connectors,omitempty"`
-	SourceConnectors int             `json:"source_connectors,omitempty"`
-	Connectors       []ConnectorInfo `json:"connectors,omitempty"`
-	WorkerCount      int             `json:"worker_count,omitempty"`
+	Available        bool             `json:"available"`
+	Version          string           `json:"version,omitempty"`
+	TotalConnectors  int              `json:"total_connectors,omitempty"`
+	SinkConnectors   int              `json:"sink_connectors,omitempty"`
+	SourceConnectors int              `json:"source_connectors,omitempty"`
+	Connectors       []ConnectorInfo  `json:"connectors,omitempty"`
+	WorkerCount      int              `json:"worker_count,omitempty"`
+	Replicators      []ReplicatorInfo `json:"replicators"`
+	ReplicatorCount  int              `json:"replicator_count"`
 }
 
 // ConnectorInfo represents information about a Kafka Connect connector
@@ -268,12 +272,15 @@ type RestProxyReport struct {
 	AvgReplicationFactor  float64               `json:"avg_replication_factor,omitempty"`
 	SecurityConfig        SecurityConfig        `json:"security_config,omitempty"`
 	Brokers               []RestProxyBrokerInfo `json:"brokers,omitempty"`
+	Topics                []RestProxyTopicInfo  `json:"topics,omitempty"`
 	ConsumerGroups        []ConsumerGroupInfo   `json:"consumer_groups,omitempty"`
 	ConsumerGroupCount    int                   `json:"consumer_group_count,omitempty"`
 	ActiveConsumerGroups  int                   `json:"active_consumer_groups,omitempty"`
 	AclCount              int                   `json:"acl_count,omitempty"`
 	Acls                  []AclInfo             `json:"acls,omitempty"`
 	ClusterConfig         map[string]string     `json:"cluster_config,omitempty"`
+	ClusterLinks          []ClusterLinkInfo     `json:"cluster_links"`
+	ClusterLinkCount      int                   `json:"cluster_link_count"`
 }
 
 // RestProxyBrokerInfo represents broker information from REST Proxy
@@ -283,6 +290,24 @@ type RestProxyBrokerInfo struct {
 	Port               int    `json:"port"`
 	IsActiveController bool   `json:"is_active_controller"`
 	HasControllerRole  bool   `json:"has_controller_role"`
+}
+
+// RestProxyTopicInfo represents detailed topic information from REST Proxy
+type RestProxyTopicInfo struct {
+	Name              string                     `json:"name"`
+	IsInternal        bool                       `json:"is_internal"`
+	PartitionCount    int                        `json:"partition_count"`
+	ReplicationFactor int                        `json:"replication_factor"`
+	Partitions        []RestProxyPartitionInfo   `json:"partitions,omitempty"`
+	Configs           map[string]string          `json:"configs,omitempty"`
+}
+
+// RestProxyPartitionInfo represents partition details
+type RestProxyPartitionInfo struct {
+	PartitionID int   `json:"partition_id"`
+	Leader      int   `json:"leader"`
+	Replicas    []int `json:"replicas"`
+	ISR         []int `json:"isr"`
 }
 
 // ConsumerGroupInfo represents consumer group information
@@ -302,6 +327,51 @@ type AclInfo struct {
 	Principal    string `json:"principal"`
 	Operation    string `json:"operation"`
 	Permission   string `json:"permission"`
+}
+
+// ClusterLinkInfo represents cluster link information
+type ClusterLinkInfo struct {
+	LinkName           string              `json:"link_name"`
+	LinkID             string              `json:"link_id,omitempty"`
+	SourceClusterID    string              `json:"source_cluster_id,omitempty"`
+	DestinationCluster string              `json:"destination_cluster,omitempty"`
+	RemoteClusterID    string              `json:"remote_cluster_id,omitempty"`
+	State              string              `json:"state,omitempty"`
+	MirrorTopicCount   int                 `json:"mirror_topic_count,omitempty"`
+	MirrorTopics       []MirrorTopicInfo   `json:"mirror_topics,omitempty"`
+	Configs            map[string]string   `json:"configs,omitempty"`
+}
+
+// MirrorTopicInfo represents a mirror topic in a cluster link
+type MirrorTopicInfo struct {
+	MirrorTopicName  string `json:"mirror_topic_name"`
+	SourceTopicName  string `json:"source_topic_name"`
+	State            string `json:"state,omitempty"`
+	MirrorStatus     string `json:"mirror_status,omitempty"`
+	NumPartitions    int    `json:"num_partitions,omitempty"`
+	MaxPerPartitionMirrorLag int64 `json:"max_per_partition_mirror_lag,omitempty"`
+}
+
+// ReplicatorInfo represents Confluent Replicator connector information
+type ReplicatorInfo struct {
+	Name                string `json:"name"`
+	SourceCluster       string `json:"source_cluster,omitempty"`
+	DestinationCluster  string `json:"destination_cluster,omitempty"`
+	TopicWhitelist      string `json:"topic_whitelist,omitempty"`
+	TopicBlacklist      string `json:"topic_blacklist,omitempty"`
+	TopicRenameFormat   string `json:"topic_rename_format,omitempty"`
+	State               string `json:"state"`
+	Tasks               int    `json:"tasks"`
+}
+
+// SchemaLinkInfo represents Schema Registry linking/exporter information
+type SchemaLinkInfo struct {
+	ExporterName    string            `json:"exporter_name"`
+	Subjects        []string          `json:"subjects,omitempty"`
+	SubjectFormat   string            `json:"subject_format,omitempty"`
+	ContextType     string            `json:"context_type,omitempty"`
+	Context         string            `json:"context,omitempty"`
+	Config          map[string]string `json:"config,omitempty"`
 }
 
 // ControlCenterReport represents Control Center discovery results
@@ -358,6 +428,7 @@ type C3SchemaRegistryInfo struct {
 	Version        string   `json:"version"`
 	SchemaCount    int      `json:"schema_count"`
 	Mode           string   `json:"mode"`
+	NodeCount      int      `json:"node_count,omitempty"`
 	Subjects       []string `json:"subjects,omitempty"`
 }
 
@@ -369,6 +440,7 @@ type C3KsqlClusterInfo struct {
 	QueryCount     int    `json:"query_count"`
 	StreamCount    int    `json:"stream_count"`
 	TableCount     int    `json:"table_count"`
+	NodeCount      int    `json:"node_count,omitempty"`
 }
 
 // PrometheusReport represents Prometheus discovery results

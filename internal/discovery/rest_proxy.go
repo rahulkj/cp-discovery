@@ -176,6 +176,58 @@ type V3ClusterConfig struct {
 	Source     string `json:"source"`
 }
 
+type V3ClusterLinksResponse struct {
+	Data []V3ClusterLink `json:"data"`
+}
+
+type V3ClusterLink struct {
+	LinkName        string                 `json:"link_name"`
+	LinkID          string                 `json:"link_id"`
+	ClusterID       string                 `json:"cluster_id"`
+	TopicNames      []string               `json:"topic_names"`
+	SourceClusterID string                 `json:"source_cluster_id"`
+	DestClusterID   string                 `json:"destination_cluster_id"`
+	RemoteClusterID string                 `json:"remote_cluster_id"`
+	Configs         map[string]interface{} `json:"configs"`
+}
+
+type V3LinkDetail struct {
+	Kind            string                 `json:"kind"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	LinkName        string                 `json:"link_name"`
+	LinkID          string                 `json:"link_id"`
+	ClusterID       string                 `json:"cluster_id"`
+	TopicNames      []string               `json:"topic_names"`
+	SourceClusterID string                 `json:"source_cluster_id"`
+	DestClusterID   string                 `json:"destination_cluster_id"`
+	RemoteClusterID string                 `json:"remote_cluster_id"`
+	LinkError       string                 `json:"link_error"`
+	LinkErrorMessage string                `json:"link_error_message"`
+	LinkState       string                 `json:"link_state"`
+	Configs         V3ConfigsRelated       `json:"configs"`
+}
+
+type V3ConfigsRelated struct {
+	Related string `json:"related"`
+}
+
+type V3MirrorTopicsResponse struct {
+	Data []V3MirrorTopic `json:"data"`
+}
+
+type V3MirrorTopic struct {
+	Kind                     string                 `json:"kind"`
+	Metadata                 map[string]interface{} `json:"metadata"`
+	LinkName                 string                 `json:"link_name"`
+	MirrorTopicName          string                 `json:"mirror_topic_name"`
+	SourceTopicName          string                 `json:"source_topic_name"`
+	NumPartitions            int                    `json:"num_partitions"`
+	MirrorStatus             string                 `json:"mirror_status"`
+	StateTimeMs              int64                  `json:"state_time_ms"`
+	MaxPerPartitionMirrorLag int64                  `json:"max_per_partition_mirror_lag"`
+	MirrorLags               map[string]interface{} `json:"mirror_lags"`
+}
+
 func DiscoverRestProxy(config model.RestProxyConfig, detailed bool) (model.RestProxyReport, error) {
 	report := model.RestProxyReport{
 		Available: false,
@@ -316,6 +368,12 @@ func getClusterDetails(client *http.Client, config model.RestProxyConfig, cluste
 	report.PartitionCount = partitionCount
 	report.AvgReplicationFactor = avgRF
 
+	// Fetch detailed topic information with partitions
+	if detailed {
+		topics := getDetailedTopics(client, config, clusterID)
+		report.Topics = topics
+	}
+
 	// Fetch consumer groups information
 	consumerGroups, activeCount := getConsumerGroups(client, config, clusterID, detailed)
 	report.ConsumerGroups = consumerGroups
@@ -332,6 +390,11 @@ func getClusterDetails(client *http.Client, config model.RestProxyConfig, cluste
 		clusterConfig := getClusterConfig(client, config, clusterID)
 		report.ClusterConfig = clusterConfig
 	}
+
+	// Fetch cluster links information
+	clusterLinks := getClusterLinks(client, config, clusterID, detailed)
+	report.ClusterLinks = clusterLinks
+	report.ClusterLinkCount = len(clusterLinks)
 }
 
 func getControllerInfo(client *http.Client, config model.RestProxyConfig, controllerURL string) *V3ControllerResponse {
@@ -1042,6 +1105,168 @@ func getAcls(client *http.Client, config model.RestProxyConfig, clusterID string
 	return acls
 }
 
+func getDetailedTopics(client *http.Client, config model.RestProxyConfig, clusterID string) []model.RestProxyTopicInfo {
+	topicsURL := fmt.Sprintf("%s/v3/clusters/%s/topics", config.URL, clusterID)
+	req, err := http.NewRequest("GET", topicsURL, nil)
+	if err != nil {
+		return []model.RestProxyTopicInfo{}
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.RestProxyTopicInfo{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.RestProxyTopicInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var topicsResp V3TopicsResponse
+	if json.Unmarshal(body, &topicsResp) != nil {
+		return []model.RestProxyTopicInfo{}
+	}
+
+	topics := make([]model.RestProxyTopicInfo, 0, len(topicsResp.Data))
+
+	for _, topicData := range topicsResp.Data {
+		topicInfo := model.RestProxyTopicInfo{
+			Name:              topicData.TopicName,
+			IsInternal:        isInternalTopicRP(topicData.TopicName),
+			PartitionCount:    topicData.PartitionsCount,
+			ReplicationFactor: topicData.ReplicationFactor,
+		}
+
+		// Get detailed partition information
+		partitions := getTopicPartitions(client, config, clusterID, topicData.TopicName)
+		topicInfo.Partitions = partitions
+
+		// Get topic configurations
+		topicConfigs := getRestProxyTopicConfigs(client, config, clusterID, topicData.TopicName)
+		topicInfo.Configs = topicConfigs
+
+		topics = append(topics, topicInfo)
+	}
+
+	return topics
+}
+
+func getTopicPartitions(client *http.Client, config model.RestProxyConfig, clusterID, topicName string) []model.RestProxyPartitionInfo {
+	partitionsURL := fmt.Sprintf("%s/v3/clusters/%s/topics/%s/partitions", config.URL, clusterID, topicName)
+	req, err := http.NewRequest("GET", partitionsURL, nil)
+	if err != nil {
+		return []model.RestProxyPartitionInfo{}
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.RestProxyPartitionInfo{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.RestProxyPartitionInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var partitionsResp struct {
+		Data []struct {
+			PartitionID int `json:"partition_id"`
+			Leader      struct {
+				BrokerID int `json:"broker_id"`
+			} `json:"leader"`
+			Replicas []struct {
+				BrokerID int `json:"broker_id"`
+			} `json:"replicas"`
+			ISR []struct {
+				BrokerID int `json:"broker_id"`
+			} `json:"isr"`
+		} `json:"data"`
+	}
+
+	if json.Unmarshal(body, &partitionsResp) != nil {
+		return []model.RestProxyPartitionInfo{}
+	}
+
+	partitions := make([]model.RestProxyPartitionInfo, 0, len(partitionsResp.Data))
+
+	for _, partData := range partitionsResp.Data {
+		replicas := make([]int, 0, len(partData.Replicas))
+		for _, replica := range partData.Replicas {
+			replicas = append(replicas, replica.BrokerID)
+		}
+
+		isr := make([]int, 0, len(partData.ISR))
+		for _, isrNode := range partData.ISR {
+			isr = append(isr, isrNode.BrokerID)
+		}
+
+		partInfo := model.RestProxyPartitionInfo{
+			PartitionID: partData.PartitionID,
+			Leader:      partData.Leader.BrokerID,
+			Replicas:    replicas,
+			ISR:         isr,
+		}
+
+		partitions = append(partitions, partInfo)
+	}
+
+	return partitions
+}
+
+func getRestProxyTopicConfigs(client *http.Client, config model.RestProxyConfig, clusterID, topicName string) map[string]string {
+	configsURL := fmt.Sprintf("%s/v3/clusters/%s/topics/%s/configs", config.URL, clusterID, topicName)
+	req, err := http.NewRequest("GET", configsURL, nil)
+	if err != nil {
+		return make(map[string]string)
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return make(map[string]string)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return make(map[string]string)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var configsResp V3TopicConfigsResponse
+	if json.Unmarshal(body, &configsResp) != nil {
+		return make(map[string]string)
+	}
+
+	configs := make(map[string]string)
+	// Only include important non-default configs
+	importantConfigs := map[string]bool{
+		"retention.ms":           true,
+		"retention.bytes":        true,
+		"segment.ms":             true,
+		"segment.bytes":          true,
+		"cleanup.policy":         true,
+		"compression.type":       true,
+		"min.insync.replicas":    true,
+		"max.message.bytes":      true,
+		"message.timestamp.type": true,
+	}
+
+	for _, cfg := range configsResp.Data {
+		if importantConfigs[cfg.Name] && cfg.Source != "DEFAULT_CONFIG" {
+			configs[cfg.Name] = cfg.Value
+		}
+	}
+
+	return configs
+}
+
 func getClusterConfig(client *http.Client, config model.RestProxyConfig, clusterID string) map[string]string {
 	configURL := fmt.Sprintf("%s/v3/clusters/%s/broker-configs", config.URL, clusterID)
 	req, err := http.NewRequest("GET", configURL, nil)
@@ -1094,4 +1319,152 @@ func getClusterConfig(client *http.Client, config model.RestProxyConfig, cluster
 	}
 
 	return clusterConfig
+}
+
+func getClusterLinks(client *http.Client, config model.RestProxyConfig, clusterID string, detailed bool) []model.ClusterLinkInfo {
+	linksURL := fmt.Sprintf("%s/v3/clusters/%s/links", config.URL, clusterID)
+	req, err := http.NewRequest("GET", linksURL, nil)
+	if err != nil {
+		return []model.ClusterLinkInfo{}
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.ClusterLinkInfo{}
+	}
+	defer resp.Body.Close()
+
+	// If endpoint doesn't exist (404) or not supported, return empty list
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
+		return []model.ClusterLinkInfo{}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.ClusterLinkInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var linksResp V3ClusterLinksResponse
+	if json.Unmarshal(body, &linksResp) != nil {
+		return []model.ClusterLinkInfo{}
+	}
+
+	links := make([]model.ClusterLinkInfo, 0, len(linksResp.Data))
+
+	for _, link := range linksResp.Data {
+		linkInfo := model.ClusterLinkInfo{
+			LinkName:           link.LinkName,
+			LinkID:             link.LinkID,
+			SourceClusterID:    link.SourceClusterID,
+			DestinationCluster: link.DestClusterID,
+			RemoteClusterID:    link.RemoteClusterID,
+		}
+
+		// Get detailed link information including state
+		if detailed {
+			linkDetail := getLinkDetail(client, config, clusterID, link.LinkName)
+			if linkDetail != nil {
+				linkInfo.State = linkDetail.LinkState
+
+				// Extract configs from detail if available
+				configs := make(map[string]string)
+				// Note: Configs would need to be fetched from the configs endpoint if needed
+				linkInfo.Configs = configs
+			}
+		}
+
+		// Get mirror topics for this link
+		mirrorTopics := getMirrorTopics(client, config, clusterID, link.LinkName, detailed)
+		linkInfo.MirrorTopics = mirrorTopics
+		linkInfo.MirrorTopicCount = len(mirrorTopics)
+
+		links = append(links, linkInfo)
+	}
+
+	return links
+}
+
+func getLinkDetail(client *http.Client, config model.RestProxyConfig, clusterID, linkName string) *V3LinkDetail {
+	linkURL := fmt.Sprintf("%s/v3/clusters/%s/links/%s", config.URL, clusterID, linkName)
+	req, err := http.NewRequest("GET", linkURL, nil)
+	if err != nil {
+		return nil
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var linkDetail V3LinkDetail
+	if json.Unmarshal(body, &linkDetail) == nil {
+		return &linkDetail
+	}
+
+	return nil
+}
+
+func getMirrorTopics(client *http.Client, config model.RestProxyConfig, clusterID, linkName string, detailed bool) []model.MirrorTopicInfo {
+	mirrorsURL := fmt.Sprintf("%s/v3/clusters/%s/links/%s/mirrors", config.URL, clusterID, linkName)
+	req, err := http.NewRequest("GET", mirrorsURL, nil)
+	if err != nil {
+		return []model.MirrorTopicInfo{}
+	}
+
+	httpauth.ApplyRestProxyAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.MirrorTopicInfo{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.MirrorTopicInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var mirrorsResp V3MirrorTopicsResponse
+	if json.Unmarshal(body, &mirrorsResp) != nil {
+		return []model.MirrorTopicInfo{}
+	}
+
+	mirrors := make([]model.MirrorTopicInfo, 0, len(mirrorsResp.Data))
+
+	for _, mirror := range mirrorsResp.Data {
+		mirrorInfo := model.MirrorTopicInfo{
+			MirrorTopicName:          mirror.MirrorTopicName,
+			SourceTopicName:          mirror.SourceTopicName,
+			MirrorStatus:             mirror.MirrorStatus,
+			NumPartitions:            mirror.NumPartitions,
+			MaxPerPartitionMirrorLag: mirror.MaxPerPartitionMirrorLag,
+		}
+
+		// Determine state based on mirror status
+		if mirror.MirrorStatus == "ACTIVE" {
+			mirrorInfo.State = "ACTIVE"
+		} else if mirror.MirrorStatus == "PAUSED" {
+			mirrorInfo.State = "PAUSED"
+		} else if mirror.MirrorStatus == "STOPPED" {
+			mirrorInfo.State = "STOPPED"
+		} else if mirror.MirrorStatus == "FAILED" {
+			mirrorInfo.State = "FAILED"
+		} else {
+			mirrorInfo.State = mirror.MirrorStatus
+		}
+
+		mirrors = append(mirrors, mirrorInfo)
+	}
+
+	return mirrors
 }
