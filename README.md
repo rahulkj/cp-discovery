@@ -78,11 +78,14 @@ open viewer.html
   - Alertmanager
 
 - **Multiple Authentication Methods**:
+  - OAuth/SSO (Client Credentials flow with automatic token management)
+  - LDAP (Active Directory, OpenLDAP)
   - Basic Authentication (username/password)
-  - Bearer Token (OAuth, JWT)
+  - Bearer Token (pre-configured OAuth, JWT)
   - API Key with custom headers
-  - Priority-based auth selection
+  - Priority-based auth selection (OAuth > LDAP > Bearer > API Key > Basic)
   - Per-component or shared authentication
+  - Token caching for OAuth to minimize requests
 
 - **Detailed Metrics Collection**:
   - **Kafka Cluster**:
@@ -409,29 +412,66 @@ clusters:
 
 ## Authentication Methods
 
-The tool supports three authentication types with priority ordering (Bearer Token > API Key > Basic Auth):
+The tool supports five authentication types with priority ordering (OAuth SSO > LDAP > Bearer Token > API Key > Basic Auth):
 
-### 1. Basic Authentication (Most Common)
+### 1. OAuth/SSO Authentication (Highest Priority)
+Automatic token retrieval using OAuth 2.0 Client Credentials flow:
 ```yaml
 schema_registry:
   url: "https://sr.example.com:8081"
-  basic_auth_username: "admin"
-  basic_auth_password: "secret"
+  oauth_enabled: true
+  oauth_client_id: "${SR_OAUTH_CLIENT_ID}"
+  oauth_client_secret: "${SR_OAUTH_CLIENT_SECRET}"
+  oauth_token_url: "https://auth.example.com/oauth/token"
+  oauth_scopes: "schema-registry.read schema-registry.write"
 ```
 
-### 2. Bearer Token (OAuth/JWT)
+**Features:**
+- Automatic token retrieval and refresh
+- Token caching to minimize auth requests
+- Supports standard OAuth 2.0 client credentials flow
+- Compatible with Keycloak, Okta, Auth0, and other OAuth providers
+
+### 2. LDAP Authentication
+Enterprise directory authentication with LDAP:
+```yaml
+kafka_connect:
+  url: "https://connect.example.com:8083"
+  ldap_enabled: true
+  ldap_server: "ldaps://ldap.example.com:636"  # or ldap://ldap.example.com:389
+  ldap_username: "${LDAP_USER}"
+  ldap_password: "${LDAP_PASS}"
+  ldap_base_dn: "ou=users,dc=example,dc=com"
+```
+
+**Features:**
+- Support for both LDAP and LDAPS (LDAP over SSL)
+- Falls back to Basic Auth with LDAP credentials
+- Configurable base DN for user lookup
+- Compatible with Active Directory and OpenLDAP
+
+### 3. Bearer Token (Pre-configured Token)
+For pre-obtained OAuth tokens or JWT:
 ```yaml
 kafka_connect:
   url: "https://connect.example.com:8083"
   bearer_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
-### 3. API Key
+### 4. API Key Authentication
 ```yaml
 ksqldb:
   url: "https://ksqldb.example.com:8088"
   api_key: "my-api-key-12345"
   api_key_header: "X-API-Key"  # Optional, defaults to "X-API-Key"
+```
+
+### 5. Basic Authentication (Most Common)
+```yaml
+schema_registry:
+  url: "https://sr.example.com:8081"
+  basic_auth_username: "admin"
+  basic_auth_password: "secret"
 ```
 
 ### Shared Authentication
@@ -493,9 +533,22 @@ Supported values for `sasl_mechanism`:
 #### Component Configuration (All Optional - Auto-discovered)
 Each component supports:
 - `url` - Component URL (auto-discovered if not specified)
-- `basic_auth_username` / `basic_auth_password` - Basic authentication
-- `bearer_token` - Bearer token authentication (OAuth/JWT)
-- `api_key` / `api_key_header` - API key authentication
+- **OAuth/SSO Authentication:**
+  - `oauth_enabled` - Enable OAuth authentication
+  - `oauth_client_id` - OAuth client ID
+  - `oauth_client_secret` - OAuth client secret
+  - `oauth_token_url` - OAuth token endpoint URL
+  - `oauth_scopes` - OAuth scopes (space-separated)
+- **LDAP Authentication:**
+  - `ldap_enabled` - Enable LDAP authentication
+  - `ldap_server` - LDAP server URL (ldap:// or ldaps://)
+  - `ldap_username` - LDAP username
+  - `ldap_password` - LDAP password
+  - `ldap_base_dn` - LDAP base DN for user lookup
+- **Other Authentication:**
+  - `basic_auth_username` / `basic_auth_password` - Basic authentication
+  - `bearer_token` - Bearer token authentication (pre-configured OAuth/JWT)
+  - `api_key` / `api_key_header` - API key authentication
 
 **Supported Components:**
 - `schema_registry` - Default: http://broker-host:8081
@@ -871,12 +924,14 @@ The tool discovers all clusters in parallel for optimal performance:
 - All security protocols (PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL)
 
 **REST API Authentication:**
+- OAuth/SSO authentication (Client Credentials flow) with automatic token management
+- LDAP authentication (Active Directory, OpenLDAP)
 - HTTP Basic Authentication (username/password)
-- Bearer Token authentication (OAuth, JWT)
+- Bearer Token authentication (pre-configured OAuth, JWT)
 - API Key authentication with custom headers
 - Shared authentication across all components
 - Per-component authentication override
-- Priority-based auth selection
+- Priority-based auth selection (OAuth > LDAP > Bearer > API Key > Basic)
 
 **Credential Management:**
 - Environment variable support with `${VAR}` syntax

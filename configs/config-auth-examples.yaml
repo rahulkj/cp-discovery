@@ -122,6 +122,123 @@ clusters:
       basic_auth_username: "${CCLOUD_SR_KEY}"
       basic_auth_password: "${CCLOUD_SR_SECRET}"
 
+  # ============================================================================
+  # Example 7: LDAP Authentication
+  # ============================================================================
+  - name: "ldap-cluster"
+    kafka:
+      bootstrap_servers: "broker5:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    # Schema Registry with LDAP
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      ldap_enabled: true
+      ldap_server: "ldap://ldap.example.com:389"
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "dc=example,dc=com"
+
+    # Kafka Connect with LDAP
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      ldap_enabled: true
+      ldap_server: "ldaps://ldap.example.com:636"  # LDAP over SSL
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "ou=users,dc=example,dc=com"
+
+    # Control Center with LDAP
+    control_center:
+      url: "https://c3.example.com:9021"
+      ldap_enabled: true
+      ldap_server: "ldap://ldap.example.com:389"
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "dc=example,dc=com"
+
+  # ============================================================================
+  # Example 8: OAuth/SSO Authentication (Client Credentials Flow)
+  # ============================================================================
+  - name: "oauth-sso-cluster"
+    kafka:
+      bootstrap_servers: "broker6:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "OAUTHBEARER"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+    # Schema Registry with OAuth
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      oauth_enabled: true
+      oauth_client_id: "${SR_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${SR_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://auth.example.com/oauth/token"
+      oauth_scopes: "schema-registry.read schema-registry.write"
+
+    # Kafka Connect with OAuth
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      oauth_enabled: true
+      oauth_client_id: "${CONNECT_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${CONNECT_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://auth.example.com/oauth/token"
+      oauth_scopes: "connect.admin"
+
+    # ksqlDB with OAuth
+    ksqldb:
+      url: "https://ksqldb.example.com:8088"
+      oauth_enabled: true
+      oauth_client_id: "${KSQLDB_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${KSQLDB_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://auth.example.com/oauth/token"
+      oauth_scopes: "ksqldb.query ksqldb.admin"
+
+    # Control Center with OAuth
+    control_center:
+      url: "https://c3.example.com:9021"
+      oauth_enabled: true
+      oauth_client_id: "${C3_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${C3_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://auth.example.com/oauth/token"
+      oauth_scopes: "control-center.read"
+
+  # ============================================================================
+  # Example 9: Combined LDAP and OAuth (Fallback Pattern)
+  # ============================================================================
+  - name: "hybrid-auth-cluster"
+    kafka:
+      bootstrap_servers: "broker7:9092"
+
+    # Schema Registry tries OAuth first, falls back to LDAP if OAuth fails
+    schema_registry:
+      url: "https://sr.example.com:8081"
+      # Primary: OAuth
+      oauth_enabled: true
+      oauth_client_id: "${SR_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${SR_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://auth.example.com/oauth/token"
+      oauth_scopes: "schema-registry.read"
+      # Fallback: LDAP
+      ldap_enabled: true
+      ldap_server: "ldap://ldap.example.com:389"
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "dc=example,dc=com"
+
+    # Kafka Connect with OAuth only
+    kafka_connect:
+      url: "https://connect.example.com:8083"
+      oauth_enabled: true
+      oauth_client_id: "${CONNECT_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${CONNECT_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "https://sso.example.com/realms/confluent/protocol/openid-connect/token"
+      oauth_scopes: "openid profile email"
+
 output:
   format: "json"
   file: "auth-discovery-report.json"

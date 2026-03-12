@@ -49,6 +49,18 @@ type SchemaRegistryConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // KafkaConnectConfig represents Kafka Connect connection configuration
@@ -59,6 +71,18 @@ type KafkaConnectConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // KsqlDBConfig represents ksqlDB connection configuration
@@ -69,6 +93,18 @@ type KsqlDBConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // RestProxyConfig represents REST Proxy connection configuration
@@ -79,6 +115,18 @@ type RestProxyConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // ControlCenterConfig represents Confluent Control Center connection configuration
@@ -89,6 +137,18 @@ type ControlCenterConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // PrometheusConfig represents Prometheus connection configuration
@@ -99,6 +159,18 @@ type PrometheusConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // AlertmanagerConfig represents Alertmanager connection configuration
@@ -109,6 +181,18 @@ type AlertmanagerConfig struct {
 	BearerToken       string `yaml:"bearer_token,omitempty"`
 	APIKey            string `yaml:"api_key,omitempty"`
 	APIKeyHeader      string `yaml:"api_key_header,omitempty"`
+	// LDAP Authentication
+	LDAPEnabled       bool   `yaml:"ldap_enabled,omitempty"`
+	LDAPServer        string `yaml:"ldap_server,omitempty"`
+	LDAPUsername      string `yaml:"ldap_username,omitempty"`
+	LDAPPassword      string `yaml:"ldap_password,omitempty"`
+	LDAPBaseDN        string `yaml:"ldap_base_dn,omitempty"`
+	// OAuth/SSO Authentication
+	OAuthEnabled      bool   `yaml:"oauth_enabled,omitempty"`
+	OAuthClientID     string `yaml:"oauth_client_id,omitempty"`
+	OAuthClientSecret string `yaml:"oauth_client_secret,omitempty"`
+	OAuthTokenURL     string `yaml:"oauth_token_url,omitempty"`
+	OAuthScopes       string `yaml:"oauth_scopes,omitempty"`
 }
 
 // OutputConfig represents output configuration
