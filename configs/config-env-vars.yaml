@@ -1,0 +1,164 @@
+# Confluent Platform Discovery - Environment Variables Example
+# This configuration demonstrates using environment variables for all credentials
+#
+# Usage:
+#   export KAFKA_BOOTSTRAP_SERVERS="broker1:9092,broker2:9092,broker3:9092"
+#   export KAFKA_USER="admin"
+#   export KAFKA_PASS="admin-secret"
+#   export SR_USER="sr-admin"
+#   export SR_PASS="sr-secret"
+#   cp-discovery --config config-env-vars.yaml
+
+clusters:
+  # ============================================================================
+  # Example 1: Using environment variables for all credentials
+  # ============================================================================
+  - name: "${CLUSTER_NAME:-production-cluster}"
+    kafka:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      security_protocol: "${KAFKA_SECURITY_PROTOCOL:-SASL_SSL}"
+      sasl_mechanism: "${KAFKA_SASL_MECHANISM:-PLAIN}"
+      sasl_username: "${KAFKA_USER}"
+      sasl_password: "${KAFKA_PASS}"
+
+      # SSL/TLS configuration with env vars
+      ssl_ca_location: "${KAFKA_SSL_CA_LOCATION}"
+      ssl_cert_location: "${KAFKA_SSL_CERT_LOCATION}"
+      ssl_key_location: "${KAFKA_SSL_KEY_LOCATION}"
+      ssl_key_password: "${KAFKA_SSL_KEY_PASSWORD}"
+
+    # Use shared auth from environment variables
+    shared_auth:
+      username: "${CP_SHARED_USER}"
+      password: "${CP_SHARED_PASS}"
+
+    schema_registry:
+      url: "${SCHEMA_REGISTRY_URL}"
+      basic_auth_username: "${SR_USER}"
+      basic_auth_password: "${SR_PASS}"
+
+    kafka_connect:
+      url: "${KAFKA_CONNECT_URL}"
+      basic_auth_username: "${CONNECT_USER}"
+      basic_auth_password: "${CONNECT_PASS}"
+
+    ksqldb:
+      url: "${KSQLDB_URL}"
+      basic_auth_username: "${KSQLDB_USER}"
+      basic_auth_password: "${KSQLDB_PASS}"
+
+    rest_proxy:
+      url: "${REST_PROXY_URL}"
+      basic_auth_username: "${REST_PROXY_USER}"
+      basic_auth_password: "${REST_PROXY_PASS}"
+
+    control_center:
+      url: "${CONTROL_CENTER_URL}"
+      basic_auth_username: "${C3_USER}"
+      basic_auth_password: "${C3_PASS}"
+
+    prometheus:
+      url: "${PROMETHEUS_URL}"
+      basic_auth_username: "${PROMETHEUS_USER}"
+      basic_auth_password: "${PROMETHEUS_PASS}"
+
+    alertmanager:
+      url: "${ALERTMANAGER_URL}"
+      basic_auth_username: "${ALERTMANAGER_USER}"
+      basic_auth_password: "${ALERTMANAGER_PASS}"
+
+  # ============================================================================
+  # Example 2: OAuth/Bearer Token authentication with env vars
+  # ============================================================================
+  - name: "${OAUTH_CLUSTER_NAME:-oauth-cluster}"
+    kafka:
+      bootstrap_servers: "${OAUTH_KAFKA_BOOTSTRAP}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "OAUTHBEARER"
+      sasl_username: "${OAUTH_KAFKA_USER}"
+      sasl_password: "${OAUTH_KAFKA_PASS}"
+
+    schema_registry:
+      url: "${OAUTH_SR_URL}"
+      oauth_enabled: true
+      oauth_client_id: "${SR_OAUTH_CLIENT_ID}"
+      oauth_client_secret: "${SR_OAUTH_CLIENT_SECRET}"
+      oauth_token_url: "${SR_OAUTH_TOKEN_URL}"
+      oauth_scopes: "${SR_OAUTH_SCOPES:-schema-registry.read schema-registry.write}"
+
+    kafka_connect:
+      url: "${OAUTH_CONNECT_URL}"
+      bearer_token: "${CONNECT_BEARER_TOKEN}"
+
+    ksqldb:
+      url: "${OAUTH_KSQLDB_URL}"
+      bearer_token: "${KSQLDB_BEARER_TOKEN}"
+
+  # ============================================================================
+  # Example 3: API Key authentication with env vars
+  # ============================================================================
+  - name: "${API_KEY_CLUSTER_NAME:-apikey-cluster}"
+    kafka:
+      bootstrap_servers: "${API_KEY_KAFKA_BOOTSTRAP}"
+
+    schema_registry:
+      url: "${API_KEY_SR_URL}"
+      api_key: "${SR_API_KEY}"
+      api_key_header: "${SR_API_KEY_HEADER:-X-API-Key}"
+
+    kafka_connect:
+      url: "${API_KEY_CONNECT_URL}"
+      api_key: "${CONNECT_API_KEY}"
+
+    control_center:
+      url: "${API_KEY_C3_URL}"
+      api_key: "${C3_API_KEY}"
+
+  # ============================================================================
+  # Example 4: LDAP authentication with env vars
+  # ============================================================================
+  - name: "${LDAP_CLUSTER_NAME:-ldap-cluster}"
+    kafka:
+      bootstrap_servers: "${LDAP_KAFKA_BOOTSTRAP}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${LDAP_KAFKA_USER}"
+      sasl_password: "${LDAP_KAFKA_PASS}"
+
+    schema_registry:
+      url: "${LDAP_SR_URL}"
+      ldap_enabled: true
+      ldap_server: "${LDAP_SERVER}"
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "${LDAP_BASE_DN}"
+
+    kafka_connect:
+      url: "${LDAP_CONNECT_URL}"
+      ldap_enabled: true
+      ldap_server: "${LDAP_SERVER}"
+      ldap_username: "${LDAP_USER}"
+      ldap_password: "${LDAP_PASS}"
+      ldap_base_dn: "${LDAP_BASE_DN}"
+
+  # ============================================================================
+  # Example 5: Confluent Cloud with env vars
+  # ============================================================================
+  - name: "${CCLOUD_CLUSTER_NAME:-confluent-cloud}"
+    kafka:
+      bootstrap_servers: "${CCLOUD_BOOTSTRAP_SERVERS}"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      sasl_username: "${CCLOUD_API_KEY}"
+      sasl_password: "${CCLOUD_API_SECRET}"
+
+    schema_registry:
+      url: "${CCLOUD_SR_URL}"
+      basic_auth_username: "${CCLOUD_SR_KEY}"
+      basic_auth_password: "${CCLOUD_SR_SECRET}"
+
+# Output configuration also supports env vars
+output:
+  format: "${OUTPUT_FORMAT:-json}"
+  file: "${OUTPUT_FILE:-discovery-report.json}"
+  detailed: true

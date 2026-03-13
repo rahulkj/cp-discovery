@@ -27,6 +27,11 @@ go.work
 config.local.yaml
 *.local.yaml
 
+# Environment variables (keep .env.example)
+.env
+.envrc
+!.env.example
+
 # Output reports
 discovery-report.*
 !config.yaml

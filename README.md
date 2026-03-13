@@ -393,15 +393,17 @@ clusters:
 - **[config-template.yaml](configs/config-template.yaml)** - 📋 **START HERE** - Copy and fill in your values
 - **[config.yaml](configs/config.yaml)** - Simple working examples
 - **[config-minimal.yaml](configs/config-minimal.yaml)** - Minimal configurations (2-6 fields)
+- **[config-env-vars.yaml](configs/config-env-vars.yaml)** - 🔐 **Environment variables** - Keep secrets safe
 
 **Reference & Examples:**
 - **[config-complete.yaml](configs/config-complete.yaml)** - Complete reference with all available properties
-- **[config-auth-examples.yaml](configs/config-auth-examples.yaml)** - Authentication patterns (Basic Auth, Bearer Token, API Key)
+- **[config-auth-examples.yaml](configs/config-auth-examples.yaml)** - Authentication patterns (Basic Auth, Bearer Token, API Key, OAuth, LDAP)
 - **[config-ssl-examples.yaml](configs/config-ssl-examples.yaml)** - SSL/TLS configuration examples (One-way SSL, mTLS, SASL_SSL)
 - **[config-production.yaml](configs/config-production.yaml)** - Production-ready multi-environment setup
 
 **Documentation:**
 - **[CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md)** - Comprehensive configuration documentation
+- **[ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)** - 🔐 **Environment variables guide** - Security best practices
 
 ### Technical Documentation
 

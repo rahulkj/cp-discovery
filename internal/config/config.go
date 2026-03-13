@@ -28,5 +28,8 @@ func LoadConfig(filename string) (*model.Config, error) {
 		}
 	}
 
+	// Expand environment variables in output config
+	config.Output.File = os.ExpandEnv(config.Output.File)
+
 	return &config, nil
 }
