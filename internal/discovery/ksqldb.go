@@ -88,6 +88,12 @@ func DiscoverKsqlDB(config model.KsqlDBConfig, detailed bool) (model.KsqlDBRepor
 	report.Streams = streamsCount
 	report.Tables = tablesCount
 
+	// Fetch additional detailed information
+	if detailed {
+		additionalInfo := fetchKsqlDBAdditionalInfo(client, config)
+		report.AdditionalInfo = &additionalInfo
+	}
+
 	return report, nil
 }
 
@@ -252,4 +258,343 @@ func getKsqlDBStreamsAndTables(client *http.Client, config model.KsqlDBConfig) (
 	}
 
 	return streamsCount, tablesCount, nil
+}
+
+// fetchKsqlDBAdditionalInfo collects extended information about ksqlDB
+func fetchKsqlDBAdditionalInfo(client *http.Client, config model.KsqlDBConfig) model.KsqlDBAdditionalInfo {
+	info := model.KsqlDBAdditionalInfo{
+		Queries:    make([]model.KsqlQueryDetail, 0),
+		Streams:    make([]model.KsqlStreamDetail, 0),
+		Tables:     make([]model.KsqlTableDetail, 0),
+		Topics:     make([]string, 0),
+		Connectors: make([]string, 0),
+	}
+
+	// Get server info
+	info.ServerInfo = getKsqlServerInfo(client, config)
+
+	// Get cluster status
+	info.ClusterStatus = getKsqlClusterStatus(client, config)
+
+	// Get detailed queries
+	info.Queries = getDetailedKsqlQueries(client, config)
+
+	// Get detailed streams and tables
+	streams, tables := getDetailedKsqlStreamsAndTables(client, config)
+	info.Streams = streams
+	info.Tables = tables
+
+	// Get topics
+	info.Topics = getKsqlTopics(client, config)
+
+	// Get connectors
+	info.Connectors = getKsqlConnectors(client, config)
+
+	return info
+}
+
+// getKsqlServerInfo retrieves ksqlDB server information
+func getKsqlServerInfo(client *http.Client, config model.KsqlDBConfig) model.KsqlServerInfo {
+	serverInfo := model.KsqlServerInfo{}
+
+	url := fmt.Sprintf("%s/info", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return serverInfo
+	}
+
+	httpauth.ApplyKsqlDBAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return serverInfo
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return serverInfo
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var info struct {
+		Version         string `json:"version"`
+		KafkaClusterID  string `json:"kafkaClusterId"`
+		KsqlServiceID   string `json:"ksqlServiceId"`
+		ServerStatus    string `json:"serverStatus"`
+	}
+
+	if json.Unmarshal(body, &info) == nil {
+		serverInfo.Version = info.Version
+		serverInfo.KafkaClusterID = info.KafkaClusterID
+		serverInfo.KsqlServiceID = info.KsqlServiceID
+		serverInfo.ServerStatus = info.ServerStatus
+	}
+
+	return serverInfo
+}
+
+// getKsqlClusterStatus retrieves ksqlDB cluster status
+func getKsqlClusterStatus(client *http.Client, config model.KsqlDBConfig) model.KsqlClusterStatus {
+	clusterStatus := model.KsqlClusterStatus{
+		Hosts: make([]model.KsqlHostInfo, 0),
+	}
+
+	url := fmt.Sprintf("%s/clusterStatus", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return clusterStatus
+	}
+
+	httpauth.ApplyKsqlDBAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return clusterStatus
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return clusterStatus
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var status struct {
+		ClusterStatus map[string]interface{} `json:"clusterStatus"`
+	}
+
+	if json.Unmarshal(body, &status) == nil {
+		// Parse cluster status structure
+		for _, hostData := range status.ClusterStatus {
+			if hostMap, ok := hostData.(map[string]interface{}); ok {
+				hostInfo := model.KsqlHostInfo{}
+				if hostInfoData, ok := hostMap["hostInfo"].(map[string]interface{}); ok {
+					hostInfo.HostInfo.Host, _ = hostInfoData["host"].(string)
+					if port, ok := hostInfoData["port"].(float64); ok {
+						hostInfo.HostInfo.Port = int(port)
+					}
+				}
+				if isActive, ok := hostMap["hostAlive"].(bool); ok {
+					hostInfo.IsActiveHost = isActive
+				}
+				clusterStatus.Hosts = append(clusterStatus.Hosts, hostInfo)
+			}
+		}
+	}
+
+	return clusterStatus
+}
+
+// getDetailedKsqlQueries retrieves detailed query information
+func getDetailedKsqlQueries(client *http.Client, config model.KsqlDBConfig) []model.KsqlQueryDetail {
+	queries := make([]model.KsqlQueryDetail, 0)
+
+	payload := map[string]string{"ksql": "SHOW QUERIES;"}
+	jsonData, _ := json.Marshal(payload)
+
+	url := fmt.Sprintf("%s/ksql", config.URL)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return queries
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+	httpauth.ApplyKsqlDBAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return queries
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var responses []map[string]interface{}
+		if json.Unmarshal(body, &responses) == nil {
+			for _, response := range responses {
+				if queriesData, ok := response["queries"].([]interface{}); ok {
+					for _, q := range queriesData {
+						if queryMap, ok := q.(map[string]interface{}); ok {
+							query := model.KsqlQueryDetail{}
+							query.ID, _ = queryMap["id"].(string)
+							query.QueryString, _ = queryMap["queryString"].(string)
+							query.State, _ = queryMap["state"].(string)
+							query.QueryType, _ = queryMap["queryType"].(string)
+							queries = append(queries, query)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return queries
+}
+
+// getDetailedKsqlStreamsAndTables retrieves detailed stream and table information
+func getDetailedKsqlStreamsAndTables(client *http.Client, config model.KsqlDBConfig) ([]model.KsqlStreamDetail, []model.KsqlTableDetail) {
+	streams := make([]model.KsqlStreamDetail, 0)
+	tables := make([]model.KsqlTableDetail, 0)
+
+	// Get streams
+	streamsPayload := map[string]string{"ksql": "SHOW STREAMS EXTENDED;"}
+	jsonData, _ := json.Marshal(streamsPayload)
+
+	url := fmt.Sprintf("%s/ksql", config.URL)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err == nil {
+		req.Header.Set("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+		httpauth.ApplyKsqlDBAuth(req, config)
+
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				var responses []map[string]interface{}
+				if json.Unmarshal(body, &responses) == nil {
+					for _, response := range responses {
+						if streamsData, ok := response["streams"].([]interface{}); ok {
+							for _, s := range streamsData {
+								if streamMap, ok := s.(map[string]interface{}); ok {
+									stream := model.KsqlStreamDetail{}
+									stream.Name, _ = streamMap["name"].(string)
+									stream.Topic, _ = streamMap["topic"].(string)
+									stream.KeyFormat, _ = streamMap["keyFormat"].(string)
+									stream.ValueFormat, _ = streamMap["valueFormat"].(string)
+									if !strings.HasPrefix(stream.Name, "KSQL_") {
+										streams = append(streams, stream)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Get tables
+	tablesPayload := map[string]string{"ksql": "SHOW TABLES EXTENDED;"}
+	jsonData, _ = json.Marshal(tablesPayload)
+
+	req, err = http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err == nil {
+		req.Header.Set("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+		httpauth.ApplyKsqlDBAuth(req, config)
+
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				var responses []map[string]interface{}
+				if json.Unmarshal(body, &responses) == nil {
+					for _, response := range responses {
+						if tablesData, ok := response["tables"].([]interface{}); ok {
+							for _, t := range tablesData {
+								if tableMap, ok := t.(map[string]interface{}); ok {
+									table := model.KsqlTableDetail{}
+									table.Name, _ = tableMap["name"].(string)
+									table.Topic, _ = tableMap["topic"].(string)
+									table.KeyFormat, _ = tableMap["keyFormat"].(string)
+									table.ValueFormat, _ = tableMap["valueFormat"].(string)
+									if !strings.HasPrefix(table.Name, "KSQL_") {
+										tables = append(tables, table)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return streams, tables
+}
+
+// getKsqlTopics retrieves topics used by ksqlDB
+func getKsqlTopics(client *http.Client, config model.KsqlDBConfig) []string {
+	topics := make([]string, 0)
+
+	payload := map[string]string{"ksql": "SHOW TOPICS;"}
+	jsonData, _ := json.Marshal(payload)
+
+	url := fmt.Sprintf("%s/ksql", config.URL)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return topics
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+	httpauth.ApplyKsqlDBAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return topics
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var responses []map[string]interface{}
+		if json.Unmarshal(body, &responses) == nil {
+			for _, response := range responses {
+				if topicsData, ok := response["topics"].([]interface{}); ok {
+					for _, t := range topicsData {
+						if topicMap, ok := t.(map[string]interface{}); ok {
+							if name, ok := topicMap["name"].(string); ok {
+								topics = append(topics, name)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return topics
+}
+
+// getKsqlConnectors retrieves connectors managed by ksqlDB
+func getKsqlConnectors(client *http.Client, config model.KsqlDBConfig) []string {
+	connectors := make([]string, 0)
+
+	payload := map[string]string{"ksql": "SHOW CONNECTORS;"}
+	jsonData, _ := json.Marshal(payload)
+
+	url := fmt.Sprintf("%s/ksql", config.URL)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return connectors
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.ksql.v1+json; charset=utf-8")
+	httpauth.ApplyKsqlDBAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return connectors
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var responses []map[string]interface{}
+		if json.Unmarshal(body, &responses) == nil {
+			for _, response := range responses {
+				if connectorsData, ok := response["connectors"].([]interface{}); ok {
+					for _, c := range connectorsData {
+						if connectorMap, ok := c.(map[string]interface{}); ok {
+							if name, ok := connectorMap["name"].(string); ok {
+								connectors = append(connectors, name)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return connectors
 }

@@ -168,6 +168,12 @@ func DiscoverSchemaRegistry(config model.SchemaRegistryConfig, detailed bool) (m
 	report.SchemaExporters = exporters
 	report.ExporterCount = len(exporters)
 
+	// Fetch additional detailed information
+	if detailed {
+		additionalInfo := fetchSchemaRegistryAdditionalInfo(client, config, report.Subjects)
+		report.AdditionalInfo = &additionalInfo
+	}
+
 	return report, nil
 }
 
@@ -261,4 +267,276 @@ func getExporterDetail(client *http.Client, config model.SchemaRegistryConfig, e
 	}
 
 	return nil
+}
+
+// fetchSchemaRegistryAdditionalInfo collects extended information about Schema Registry
+func fetchSchemaRegistryAdditionalInfo(client *http.Client, config model.SchemaRegistryConfig, subjects []string) model.SchemaRegistryAdditionalInfo {
+	info := model.SchemaRegistryAdditionalInfo{
+		Subjects:            make([]model.SubjectDetail, 0),
+		CompatibilityLevels: make(map[string]string),
+		Contexts:            make([]string, 0),
+		Config:              make(map[string]string),
+	}
+
+	// Get global compatibility level
+	info.GlobalCompatibility = getGlobalCompatibility(client, config)
+
+	// Get cluster information
+	info.ClusterInfo = getClusterInfo(client, config)
+
+	// Get global config
+	info.Config = getGlobalConfig(client, config)
+
+	// Get contexts
+	info.Contexts = getContexts(client, config)
+
+	// For each subject, get detailed information
+	for _, subject := range subjects {
+		subjectDetail := getSubjectDetail(client, config, subject)
+		if subjectDetail.Subject != "" {
+			info.Subjects = append(info.Subjects, subjectDetail)
+			// Store compatibility level
+			if subjectDetail.Compatibility != "" {
+				info.CompatibilityLevels[subject] = subjectDetail.Compatibility
+			}
+		}
+	}
+
+	return info
+}
+
+// getGlobalCompatibility gets the global compatibility level
+func getGlobalCompatibility(client *http.Client, config model.SchemaRegistryConfig) string {
+	url := fmt.Sprintf("%s/config", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return ""
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var configResp struct {
+		CompatibilityLevel string `json:"compatibilityLevel"`
+	}
+	if json.Unmarshal(body, &configResp) == nil {
+		return configResp.CompatibilityLevel
+	}
+
+	return ""
+}
+
+// getClusterInfo gets Schema Registry cluster information
+func getClusterInfo(client *http.Client, config model.SchemaRegistryConfig) model.SRClusterInfo {
+	clusterInfo := model.SRClusterInfo{}
+
+	url := fmt.Sprintf("%s/clusterStatus", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return clusterInfo
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return clusterInfo
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return clusterInfo
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var clusterStatus SchemaRegistryClusterStatus
+	if json.Unmarshal(body, &clusterStatus) == nil {
+		clusterInfo.Leader = clusterStatus.Leader
+		clusterInfo.IsLeader = clusterStatus.IsLeader
+		clusterInfo.Members = clusterStatus.Members
+	}
+
+	return clusterInfo
+}
+
+// getGlobalConfig gets global Schema Registry config
+func getGlobalConfig(client *http.Client, config model.SchemaRegistryConfig) map[string]string {
+	configMap := make(map[string]string)
+
+	url := fmt.Sprintf("%s/config", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return configMap
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return configMap
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return configMap
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var rawConfig map[string]interface{}
+	if json.Unmarshal(body, &rawConfig) == nil {
+		for key, val := range rawConfig {
+			configMap[key] = fmt.Sprintf("%v", val)
+		}
+	}
+
+	return configMap
+}
+
+// getContexts gets all Schema Registry contexts
+func getContexts(client *http.Client, config model.SchemaRegistryConfig) []string {
+	url := fmt.Sprintf("%s/contexts", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return []string{}
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []string{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []string{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var contexts []string
+	if json.Unmarshal(body, &contexts) == nil {
+		return contexts
+	}
+
+	return []string{}
+}
+
+// getSubjectDetail gets detailed information for a subject
+func getSubjectDetail(client *http.Client, config model.SchemaRegistryConfig, subject string) model.SubjectDetail {
+	detail := model.SubjectDetail{
+		Subject:  subject,
+		Versions: make([]int, 0),
+	}
+
+	// Get all versions for the subject
+	versionsURL := fmt.Sprintf("%s/subjects/%s/versions", config.URL, subject)
+	req, err := http.NewRequest("GET", versionsURL, nil)
+	if err != nil {
+		return detail
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return detail
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var versions []int
+		if json.Unmarshal(body, &versions) == nil {
+			detail.Versions = versions
+			if len(versions) > 0 {
+				detail.LatestVersion = versions[len(versions)-1]
+			}
+		}
+	}
+
+	// Get latest schema
+	if detail.LatestVersion > 0 {
+		detail.LatestSchema = getSchemaVersion(client, config, subject, detail.LatestVersion)
+	}
+
+	// Get subject-level compatibility
+	compatURL := fmt.Sprintf("%s/config/%s", config.URL, subject)
+	req, err = http.NewRequest("GET", compatURL, nil)
+	if err == nil {
+		httpauth.ApplySchemaRegistryAuth(req, config)
+		resp, err = client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				var compatResp struct {
+					CompatibilityLevel string `json:"compatibilityLevel"`
+				}
+				if json.Unmarshal(body, &compatResp) == nil {
+					detail.Compatibility = compatResp.CompatibilityLevel
+				}
+			}
+		}
+	}
+
+	return detail
+}
+
+// getSchemaVersion gets a specific version of a schema
+func getSchemaVersion(client *http.Client, config model.SchemaRegistryConfig, subject string, version int) model.SchemaDetail {
+	schemaDetail := model.SchemaDetail{
+		Version:    version,
+		References: make([]model.SchemaReference, 0),
+		Metadata:   make(map[string]interface{}),
+	}
+
+	url := fmt.Sprintf("%s/subjects/%s/versions/%d", config.URL, subject, version)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return schemaDetail
+	}
+
+	httpauth.ApplySchemaRegistryAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return schemaDetail
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return schemaDetail
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var schemaResp struct {
+		Subject    string                   `json:"subject"`
+		ID         int                      `json:"id"`
+		Version    int                      `json:"version"`
+		Schema     string                   `json:"schema"`
+		SchemaType string                   `json:"schemaType"`
+		References []model.SchemaReference  `json:"references"`
+		Metadata   map[string]interface{}   `json:"metadata"`
+	}
+
+	if json.Unmarshal(body, &schemaResp) == nil {
+		schemaDetail.ID = schemaResp.ID
+		schemaDetail.Version = schemaResp.Version
+		schemaDetail.Schema = schemaResp.Schema
+		schemaDetail.SchemaType = schemaResp.SchemaType
+		schemaDetail.References = schemaResp.References
+		schemaDetail.Metadata = schemaResp.Metadata
+	}
+
+	return schemaDetail
 }

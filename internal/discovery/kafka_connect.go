@@ -213,6 +213,12 @@ func DiscoverKafkaConnect(config model.KafkaConnectConfig, detailed bool) (model
 
 	report.ReplicatorCount = len(report.Replicators)
 
+	// Fetch additional detailed information
+	if detailed {
+		additionalInfo := fetchKafkaConnectAdditionalInfo(client, config, connectorsInfo, connectorsStatus)
+		report.AdditionalInfo = &additionalInfo
+	}
+
 	return report, nil
 }
 
@@ -337,4 +343,267 @@ func getConnectWorkerCount(client *http.Client, config model.KafkaConnectConfig)
 	}
 
 	return 1 // Default to single worker
+}
+
+// fetchKafkaConnectAdditionalInfo collects extended information about Kafka Connect
+func fetchKafkaConnectAdditionalInfo(client *http.Client, config model.KafkaConnectConfig, connectorsInfo map[string]ConnectorExpandedInfo, connectorsStatus map[string]ConnectorExpandedStatus) model.KafkaConnectAdditionalInfo {
+	info := model.KafkaConnectAdditionalInfo{
+		Connectors:      make([]model.ConnectorDetailInfo, 0),
+		ConnectorPlugins: make([]model.ConnectorPlugin, 0),
+		Workers:         make([]model.WorkerInfo, 0),
+	}
+
+	// Get connector plugins
+	info.ConnectorPlugins = getConnectorPlugins(client, config)
+
+	// Get cluster info
+	info.ClusterInfo = getConnectClusterInfo(client, config)
+
+	// Get workers
+	info.Workers = getConnectWorkers(client, config)
+
+	// Get detailed connector information
+	for connectorName, statusData := range connectorsStatus {
+		connectorDetail := model.ConnectorDetailInfo{
+			Name:      connectorName,
+			Type:      statusData.Status.Type,
+			State:     statusData.Status.Connector.State,
+			WorkerID:  statusData.Status.Connector.WorkerID,
+			Tasks:     make([]model.ConnectorTaskDetail, 0),
+			Topics:    make([]string, 0),
+		}
+
+		// Get config from info
+		if infoData, ok := connectorsInfo[connectorName]; ok {
+			connectorDetail.Config = infoData.Info.Config
+		}
+
+		// Get task details
+		for _, task := range statusData.Status.Tasks {
+			taskDetail := model.ConnectorTaskDetail{
+				TaskID:   task.ID,
+				State:    task.State,
+				WorkerID: task.WorkerID,
+			}
+
+			// Get task config
+			taskConfig := getConnectorTaskConfig(client, config, connectorName, task.ID)
+			if taskConfig != nil {
+				taskDetail.Config = taskConfig
+			}
+
+			connectorDetail.Tasks = append(connectorDetail.Tasks, taskDetail)
+		}
+
+		connectorDetail.TaskCount = len(connectorDetail.Tasks)
+
+		// Get connector topics
+		topics := getConnectorTopics(client, config, connectorName)
+		connectorDetail.Topics = topics
+
+		info.Connectors = append(info.Connectors, connectorDetail)
+	}
+
+	return info
+}
+
+// getConnectorPlugins retrieves available connector plugins
+func getConnectorPlugins(client *http.Client, config model.KafkaConnectConfig) []model.ConnectorPlugin {
+	url := fmt.Sprintf("%s/connector-plugins", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return []model.ConnectorPlugin{}
+	}
+
+	httpauth.ApplyKafkaConnectAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.ConnectorPlugin{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.ConnectorPlugin{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var plugins []struct {
+		Class   string `json:"class"`
+		Type    string `json:"type"`
+		Version string `json:"version"`
+	}
+
+	if json.Unmarshal(body, &plugins) == nil {
+		result := make([]model.ConnectorPlugin, 0, len(plugins))
+		for _, p := range plugins {
+			result = append(result, model.ConnectorPlugin{
+				Class:   p.Class,
+				Type:    p.Type,
+				Version: p.Version,
+			})
+		}
+		return result
+	}
+
+	return []model.ConnectorPlugin{}
+}
+
+// getConnectClusterInfo retrieves Connect cluster information
+func getConnectClusterInfo(client *http.Client, config model.KafkaConnectConfig) model.ConnectClusterInfo {
+	clusterInfo := model.ConnectClusterInfo{}
+
+	// Get version info
+	url := fmt.Sprintf("%s/", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return clusterInfo
+	}
+
+	httpauth.ApplyKafkaConnectAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return clusterInfo
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var connectInfo ConnectInfo
+		if json.Unmarshal(body, &connectInfo) == nil {
+			clusterInfo.Version = connectInfo.Version
+			clusterInfo.Commit = connectInfo.Commit
+		}
+	}
+
+	// Try to get cluster ID from admin endpoint
+	adminURL := fmt.Sprintf("%s/admin/cluster", config.URL)
+	req, err = http.NewRequest("GET", adminURL, nil)
+	if err == nil {
+		httpauth.ApplyKafkaConnectAuth(req, config)
+		resp, err = client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				var clusterData map[string]interface{}
+				if json.Unmarshal(body, &clusterData) == nil {
+					if clusterID, ok := clusterData["kafka_cluster_id"].(string); ok {
+						clusterInfo.ClusterID = clusterID
+					}
+				}
+			}
+		}
+	}
+
+	return clusterInfo
+}
+
+// getConnectWorkers retrieves worker information
+func getConnectWorkers(client *http.Client, config model.KafkaConnectConfig) []model.WorkerInfo {
+	url := fmt.Sprintf("%s/admin/cluster", config.URL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return []model.WorkerInfo{}
+	}
+
+	httpauth.ApplyKafkaConnectAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []model.WorkerInfo{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.WorkerInfo{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var clusterData struct {
+		Leader  string                   `json:"leader_url"`
+		Workers []map[string]interface{} `json:"workers"`
+	}
+
+	if json.Unmarshal(body, &clusterData) == nil {
+		workers := make([]model.WorkerInfo, 0, len(clusterData.Workers))
+		for _, w := range clusterData.Workers {
+			worker := model.WorkerInfo{}
+			if id, ok := w["worker_id"].(string); ok {
+				worker.ID = id
+			}
+			if url, ok := w["url"].(string); ok {
+				// Parse URL to extract host and port if needed
+				worker.Leader = (url == clusterData.Leader)
+			}
+			workers = append(workers, worker)
+		}
+		return workers
+	}
+
+	return []model.WorkerInfo{}
+}
+
+// getConnectorTaskConfig retrieves task configuration
+func getConnectorTaskConfig(client *http.Client, config model.KafkaConnectConfig, connectorName string, taskID int) map[string]interface{} {
+	url := fmt.Sprintf("%s/connectors/%s/tasks/%d/config", config.URL, connectorName, taskID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil
+	}
+
+	httpauth.ApplyKafkaConnectAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var taskConfig map[string]interface{}
+	if json.Unmarshal(body, &taskConfig) == nil {
+		return taskConfig
+	}
+
+	return nil
+}
+
+// getConnectorTopics retrieves topics used by a connector
+func getConnectorTopics(client *http.Client, config model.KafkaConnectConfig, connectorName string) []string {
+	url := fmt.Sprintf("%s/connectors/%s/topics", config.URL, connectorName)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return []string{}
+	}
+
+	httpauth.ApplyKafkaConnectAuth(req, config)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []string{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []string{}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var topicsResp struct {
+		Connector struct {
+			Topics []string `json:"topics"`
+		} `json:"connector"`
+	}
+
+	if json.Unmarshal(body, &topicsResp) == nil {
+		return topicsResp.Connector.Topics
+	}
+
+	return []string{}
 }

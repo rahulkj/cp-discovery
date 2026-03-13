@@ -138,6 +138,12 @@ func DiscoverKafka(config model.KafkaConfig, detailed bool) (model.KafkaReport, 
 	// Calculate cluster metrics
 	report.ClusterMetrics = calculateClusterMetrics(report)
 
+	// Fetch additional detailed information
+	if detailed {
+		additionalInfo := fetchAdditionalKafkaInfo(client, ctx, metadata, report.Topics)
+		report.AdditionalInfo = &additionalInfo
+	}
+
 	return report, nil
 }
 
@@ -498,4 +504,378 @@ func determineKafkaAuthMethod(config model.SecurityConfig) string {
 	}
 
 	return "PLAINTEXT"
+}
+
+// fetchAdditionalKafkaInfo collects extended information about the Kafka cluster
+func fetchAdditionalKafkaInfo(client *kafka.Client, ctx context.Context, metadata *kafka.MetadataResponse, topics []model.TopicInfo) model.KafkaAdditionalInfo {
+	info := model.KafkaAdditionalInfo{
+		ConsumerGroups:     make([]model.KafkaConsumerGroup, 0),
+		DetailedPartitions: make([]model.DetailedPartitionInfo, 0),
+		BrokerConfigs:      make([]model.BrokerConfigInfo, 0),
+		ApiVersions:        make([]model.ApiVersionInfo, 0),
+	}
+
+	// Extract cluster ID from metadata
+	if metadata != nil && metadata.ClusterID != "" {
+		info.ClusterID = metadata.ClusterID
+	}
+
+	// Identify controller
+	if metadata != nil && len(metadata.Brokers) > 0 {
+		// In KRaft mode, try to find the active controller
+		// In ZooKeeper mode, there's typically one controller
+		info.ControllerID = metadata.Controller.ID
+	}
+
+	// Fetch consumer groups
+	consumerGroups, activeCount := fetchConsumerGroups(client, ctx)
+	info.ConsumerGroups = consumerGroups
+	info.TotalConsumerGroups = len(consumerGroups)
+	info.ActiveConsumerGroups = activeCount
+
+	// Fetch detailed partition information
+	info.DetailedPartitions = fetchDetailedPartitions(client, ctx, metadata)
+
+	// Fetch broker configurations
+	info.BrokerConfigs = fetchBrokerConfigs(client, ctx, metadata)
+
+	// Fetch API versions
+	info.ApiVersions = fetchApiVersions(client, ctx)
+
+	return info
+}
+
+// fetchConsumerGroups retrieves all consumer groups and their details
+func fetchConsumerGroups(client *kafka.Client, ctx context.Context) ([]model.KafkaConsumerGroup, int) {
+	groups := make([]model.KafkaConsumerGroup, 0)
+	activeCount := 0
+
+	// List consumer groups
+	listReq := &kafka.ListGroupsRequest{}
+	listResp, err := client.ListGroups(ctx, listReq)
+	if err != nil {
+		return groups, activeCount
+	}
+
+	// For each group, get detailed information
+	for _, groupInfo := range listResp.Groups {
+		group := model.KafkaConsumerGroup{
+			GroupID:      groupInfo.GroupID,
+			ProtocolType: groupInfo.ProtocolType,
+			Coordinator:  groupInfo.Coordinator,
+			Members:      make([]model.ConsumerGroupMember, 0),
+			Partitions:   make([]model.ConsumerGroupPartition, 0),
+		}
+
+		// Describe group to get member details and state
+		descReq := &kafka.DescribeGroupsRequest{
+			GroupIDs: []string{groupInfo.GroupID},
+		}
+		descResp, err := client.DescribeGroups(ctx, descReq)
+		if err == nil && len(descResp.Groups) > 0 {
+			groupDetail := descResp.Groups[0]
+			group.State = groupDetail.GroupState
+			group.MemberCount = len(groupDetail.Members)
+
+			// Count active groups
+			if groupDetail.GroupState == "Stable" || groupDetail.GroupState == "PreparingRebalance" || groupDetail.GroupState == "CompletingRebalance" {
+				activeCount++
+			}
+
+			// Extract member information
+			for _, member := range groupDetail.Members {
+				groupMember := model.ConsumerGroupMember{
+					MemberID:           member.MemberID,
+					ClientID:           member.ClientID,
+					ClientHost:         member.ClientHost,
+					AssignedTopics:     make([]string, 0),
+					AssignedPartitions: 0,
+				}
+
+				// Parse member assignment to get topics and partitions
+				if len(member.MemberAssignments.Topics) > 0 {
+					topicsMap := make(map[string]bool)
+					for _, topicAssignment := range member.MemberAssignments.Topics {
+						topicsMap[topicAssignment.Topic] = true
+						groupMember.AssignedPartitions += len(topicAssignment.Partitions)
+					}
+					for topic := range topicsMap {
+						groupMember.AssignedTopics = append(groupMember.AssignedTopics, topic)
+					}
+				}
+
+				group.Members = append(group.Members, groupMember)
+			}
+		}
+
+		// Fetch offsets for the group
+		offsetFetchReq := &kafka.OffsetFetchRequest{
+			GroupID: groupInfo.GroupID,
+		}
+		offsetFetchResp, err := client.OffsetFetch(ctx, offsetFetchReq)
+		if err == nil {
+			var totalLag int64 = 0
+
+			for topic, partitions := range offsetFetchResp.Topics {
+				for _, partition := range partitions {
+					// Get high watermark for this partition
+					highReq := &kafka.ListOffsetsRequest{
+						Topics: map[string][]kafka.OffsetRequest{
+							topic: {
+								{
+									Partition: partition.Partition,
+									Timestamp: kafka.LastOffset,
+								},
+							},
+						},
+					}
+
+					highResp, err := client.ListOffsets(ctx, highReq)
+					if err != nil {
+						continue
+					}
+
+					var logEndOffset int64
+					if topicOffsets, ok := highResp.Topics[topic]; ok && len(topicOffsets) > 0 {
+						logEndOffset = topicOffsets[0].LastOffset
+					}
+
+					lag := logEndOffset - partition.CommittedOffset
+					if lag < 0 {
+						lag = 0
+					}
+					totalLag += lag
+
+					cgPartition := model.ConsumerGroupPartition{
+						Topic:         topic,
+						Partition:     partition.Partition,
+						CurrentOffset: partition.CommittedOffset,
+						LogEndOffset:  logEndOffset,
+						Lag:           lag,
+					}
+
+					group.Partitions = append(group.Partitions, cgPartition)
+				}
+			}
+
+			group.TotalLag = totalLag
+		}
+
+		groups = append(groups, group)
+	}
+
+	return groups, activeCount
+}
+
+// fetchDetailedPartitions retrieves detailed partition information
+func fetchDetailedPartitions(client *kafka.Client, ctx context.Context, metadata *kafka.MetadataResponse) []model.DetailedPartitionInfo {
+	partitions := make([]model.DetailedPartitionInfo, 0)
+
+	if metadata == nil {
+		return partitions
+	}
+
+	// For each topic, get partition details
+	for _, topic := range metadata.Topics {
+		for _, partition := range topic.Partitions {
+			detailedPartition := model.DetailedPartitionInfo{
+				Topic:           topic.Name,
+				Partition:       partition.ID,
+				Leader:          partition.Leader.ID,
+				Replicas:        make([]int, 0),
+				ISR:             make([]int, 0),
+				OfflineReplicas: make([]int, 0),
+			}
+
+			// Collect replica IDs
+			for _, replica := range partition.Replicas {
+				detailedPartition.Replicas = append(detailedPartition.Replicas, replica.ID)
+			}
+
+			// Collect ISR IDs
+			for _, isr := range partition.Isr {
+				detailedPartition.ISR = append(detailedPartition.ISR, isr.ID)
+			}
+
+			// Identify offline replicas (replicas not in ISR)
+			isrMap := make(map[int]bool)
+			for _, isr := range partition.Isr {
+				isrMap[isr.ID] = true
+			}
+			for _, replica := range partition.Replicas {
+				if !isrMap[replica.ID] {
+					detailedPartition.OfflineReplicas = append(detailedPartition.OfflineReplicas, replica.ID)
+				}
+			}
+
+			// Get offset information
+			// Get high watermark (last offset)
+			highReq := &kafka.ListOffsetsRequest{
+				Topics: map[string][]kafka.OffsetRequest{
+					topic.Name: {
+						{
+							Partition: partition.ID,
+							Timestamp: kafka.LastOffset,
+						},
+					},
+				},
+			}
+			highResp, err := client.ListOffsets(ctx, highReq)
+			if err == nil {
+				if topicOffsets, ok := highResp.Topics[topic.Name]; ok && len(topicOffsets) > 0 {
+					detailedPartition.LastOffset = topicOffsets[0].LastOffset
+				}
+			}
+
+			// Get low watermark (first offset)
+			lowReq := &kafka.ListOffsetsRequest{
+				Topics: map[string][]kafka.OffsetRequest{
+					topic.Name: {
+						{
+							Partition: partition.ID,
+							Timestamp: kafka.FirstOffset,
+						},
+					},
+				},
+			}
+			lowResp, err := client.ListOffsets(ctx, lowReq)
+			if err == nil {
+				if topicOffsets, ok := lowResp.Topics[topic.Name]; ok && len(topicOffsets) > 0 {
+					detailedPartition.FirstOffset = topicOffsets[0].LastOffset
+				}
+			}
+
+			// Calculate message count
+			detailedPartition.MessageCount = detailedPartition.LastOffset - detailedPartition.FirstOffset
+
+			partitions = append(partitions, detailedPartition)
+		}
+	}
+
+	return partitions
+}
+
+// fetchBrokerConfigs retrieves broker configurations
+func fetchBrokerConfigs(client *kafka.Client, ctx context.Context, metadata *kafka.MetadataResponse) []model.BrokerConfigInfo {
+	brokerConfigs := make([]model.BrokerConfigInfo, 0)
+
+	if metadata == nil {
+		return brokerConfigs
+	}
+
+	// For each broker, fetch its configuration
+	for _, broker := range metadata.Brokers {
+		brokerConfig := model.BrokerConfigInfo{
+			BrokerID: broker.ID,
+			Configs:  make(map[string]model.BrokerConfigEntry),
+		}
+
+		// Describe broker configs
+		req := &kafka.DescribeConfigsRequest{
+			Resources: []kafka.DescribeConfigRequestResource{
+				{
+					ResourceType: kafka.ResourceTypeBroker,
+					ResourceName: fmt.Sprintf("%d", broker.ID),
+				},
+			},
+		}
+
+		resp, err := client.DescribeConfigs(ctx, req)
+		if err != nil {
+			continue
+		}
+
+		if len(resp.Resources) > 0 {
+			for _, entry := range resp.Resources[0].ConfigEntries {
+				configEntry := model.BrokerConfigEntry{
+					Name:      entry.ConfigName,
+					Value:     entry.ConfigValue,
+					Source:    string(entry.ConfigSource),
+					Sensitive: entry.IsSensitive,
+					ReadOnly:  entry.ReadOnly,
+				}
+				brokerConfig.Configs[entry.ConfigName] = configEntry
+			}
+		}
+
+		brokerConfigs = append(brokerConfigs, brokerConfig)
+	}
+
+	return brokerConfigs
+}
+
+// fetchApiVersions retrieves supported API versions from the broker
+func fetchApiVersions(client *kafka.Client, ctx context.Context) []model.ApiVersionInfo {
+	apiVersions := make([]model.ApiVersionInfo, 0)
+
+	// API versions request
+	req := &kafka.ApiVersionsRequest{}
+	resp, err := client.ApiVersions(ctx, req)
+	if err != nil {
+		return apiVersions
+	}
+
+	// Map of API keys to names
+	apiNames := map[int16]string{
+		0:  "Produce",
+		1:  "Fetch",
+		2:  "ListOffsets",
+		3:  "Metadata",
+		8:  "OffsetCommit",
+		9:  "OffsetFetch",
+		10: "FindCoordinator",
+		11: "JoinGroup",
+		12: "Heartbeat",
+		13: "LeaveGroup",
+		14: "SyncGroup",
+		15: "DescribeGroups",
+		16: "ListGroups",
+		17: "SaslHandshake",
+		18: "ApiVersions",
+		19: "CreateTopics",
+		20: "DeleteTopics",
+		21: "DeleteRecords",
+		22: "InitProducerId",
+		23: "OffsetForLeaderEpoch",
+		24: "AddPartitionsToTxn",
+		25: "AddOffsetsToTxn",
+		26: "EndTxn",
+		27: "WriteTxnMarkers",
+		28: "TxnOffsetCommit",
+		29: "DescribeAcls",
+		30: "CreateAcls",
+		31: "DeleteAcls",
+		32: "DescribeConfigs",
+		33: "AlterConfigs",
+		36: "SaslAuthenticate",
+		37: "CreatePartitions",
+		38: "CreateDelegationToken",
+		39: "RenewDelegationToken",
+		40: "ExpireDelegationToken",
+		41: "DescribeDelegationToken",
+		42: "DeleteGroups",
+		43: "ElectLeaders",
+		44: "IncrementalAlterConfigs",
+		45: "AlterPartitionReassignments",
+		46: "ListPartitionReassignments",
+		50: "DescribeUserScramCredentials",
+		51: "AlterUserScramCredentials",
+	}
+
+	for _, apiKey := range resp.ApiKeys {
+		apiVersion := model.ApiVersionInfo{
+			ApiKey:     int16(apiKey.ApiKey),
+			MinVersion: int16(apiKey.MinVersion),
+			MaxVersion: int16(apiKey.MaxVersion),
+		}
+
+		// Add API name if known
+		if name, ok := apiNames[int16(apiKey.ApiKey)]; ok {
+			apiVersion.ApiName = name
+		}
+
+		apiVersions = append(apiVersions, apiVersion)
+	}
+
+	return apiVersions
 }
